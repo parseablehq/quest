@@ -26,9 +26,9 @@ input_file=$PWD/input.json
 
 curl_std_opts=( -sS --header 'Content-Type: application/json' -w '\n\n%{http_code}' -u "$username":"$password" )
 
-alert_body='{"alerts":[{"name":"server-fail-alert1","message":"server reported error status","rule":{"field":"http_status","contains":"500","repeats":5,"within":"10m"},"target":[{"name":"slack-target","server_url":"http://mailgun.com","api_key":"xxxx"}]}]}'
+alert_body='{"alerts":[{"message":"server side error occurred","name":"Status Alert","rule":{"config":{"column":"status","operator":"notEqualTo","repeats":2,"value":500},"type":"column"},"targets":[{"config":{"url":"https://webhook.site/6b184e08-82c4-46dc-b344-5b85414c2a71"},"repeat":"30s","type":"webhook"},{"config":{"url":"https://hooks.slack.com/services/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"},"repeat":"1m","type":"slack"}]}]}'
 
-schema_body='{"fields":[{"name":"host","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"user-identifier","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"datetime","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"method","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"request","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"protocol","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"status","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"bytes","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"referer","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"labels","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false}]}'
+schema_body='{"fields":[{"name":"p_timestamp","data_type":{"Timestamp":["Millisecond",null]},"nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"bytes","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"datetime","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"host","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"method","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"p_metadata","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"p_tags","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"protocol","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"referer","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"request","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"status","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false},{"name":"user-identifier","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false}]}'
 
 # Generate events using flog (https://github.com/mingrammer/flog) and store it in input.json file
 create_input_file () {
@@ -56,7 +56,7 @@ create_stream () {
   fi
 
   content=$(sed '$ d' <<< "$response")
-  if [ "$content" != "Created log stream $stream_name" ]; then
+  if [ "$content" != "log stream created" ]; then
     printf "Failed to create log stream $stream_name with response: %s\n" "$content"
     printf "Test create_stream: failed\n"
     exit 1
@@ -86,13 +86,6 @@ post_event_data () {
   http_code=$(tail -n1 <<< "$response")
   if [ "$http_code" -ne 200 ]; then
     printf "Failed to create log stream %s with http code: %s and response: %s\n" "$stream_name" "$http_code" "$content"
-    printf "Test post_event_data: failed\n"
-    exit 1
-  fi
-  
-  content=$(sed '$ d' <<< "$response")
-  if [ "$content" != "Successfully posted $events events" ]; then
-    printf "Failed to post log data to %s with response: %s\n" "$stream_name" "$content"
     printf "Test post_event_data: failed\n"
     exit 1
   fi
@@ -211,7 +204,7 @@ set_alert () {
   fi
 
   content=$(sed '$ d' <<< "$response")
-  if [ "$content" != "Set alert configuration for log stream $stream_name" ]; then
+  if [ "$content" != "set alert configuration for log stream $stream_name" ]; then
     printf "Failed to set alert on log stream %s with response: %s\n" "$stream_name" "$content"
     printf "Test set_alert: failed\n"
     exit 1

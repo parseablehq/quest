@@ -21,13 +21,21 @@ endpoint=$2
 username=$3
 password=$4
 
+stream_name=$(head /dev/urandom | tr -dc a-z | head -c10)
+
 run_smoke_test () {
-  stream_name=$(head /dev/urandom | tr -dc a-z | head -c10)
   ./testcases/smoke_test.sh "$endpoint" "$stream_name" "$username" "$password"
+  return $?
+}
+
+run_load_test () {
+  ./testcases/load_test.sh "$endpoint" "$stream_name" "$username" "$password"
   return $?
 }
 
 case "$mode" in
    "smoke") run_smoke_test 
+   ;;
+   "load") run_load_test 
    ;;
 esac
