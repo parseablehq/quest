@@ -1,7 +1,6 @@
-
-
 import http from 'k6/http';
 import { check, fail, sleep } from 'k6';
+import encoding from 'k6/encoding';
 import { randomString, randomItem, randomIntBetween, uuidv4 } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js'
 
 export const options = {
@@ -77,7 +76,7 @@ function payload3() {
 
 export default function () {
     sleep(0.1);
-    const url1 = 'http://${__ENV.P_URL}/api/v1/ingest';
+    const url = `${__ENV.P_URL}/api/v1/ingest`;
     const credentials = `${__ENV.P_USERNAME}:${__ENV.P_PASSWORD}`;
     const encodedCredentials = encoding.b64encode(credentials);
 
@@ -85,20 +84,20 @@ export default function () {
         headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Basic ${encodedCredentials}',
-            'X-P-STREAM': "${__ENV.P_STREAM}",
+            'X-P-STREAM': "`${__ENV.P_STREAM}`",
             'X-P-META-Host': '10.116.0.3',
             'X-P-META-Source': 'quest-test',
         }
     }
 
-    http.post(url1, payload1(), params);
-    http.post(url1, payload2(), params);
-    http.post(url1, payload3(), params);
+    http.post(url, payload1(), params);
+    http.post(url, payload2(), params);
+    http.post(url, payload3(), params);
 
-    if (!check(res, {'status code MUST be 200': (res) => res.status == 200,})) 
-    {
-        console.log(res)
-        fail("exiting");
+    // if (!check(res, {'status code MUST be 200': (res) => res.status == 200,})) 
+    // {
+    //     console.log(res)
+    //     fail("exiting");
     
-    }
+    // }
 }

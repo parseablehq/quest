@@ -23,6 +23,34 @@ password=$4
 
 curl_std_opts=( -sS --header 'Content-Type: application/json' -w '\n\n%{http_code}' -u "$username":"$password" )
 
+# Create stream
+create_stream () {
+  response=$(curl "${curl_std_opts[@]}" --request PUT "$parseable_url"/api/v1/logstream/"$stream_name")
+  
+  if [ $? -ne 0 ]; then
+    printf "Failed to create log stream %s with exit code: %s\n" "$stream_name" "$?"
+    printf "Test create_stream: failed\n"
+    exit 1
+  fi
+  
+  http_code=$(tail -n1 <<< "$response")
+  if [ "$http_code" -ne 200 ]; then
+    printf "Failed to create log stream %s with http code: %s and response: %s\n" "$stream_name" "$http_code" "$content"
+    printf "Test create_stream: failed\n"
+    exit 1
+  fi
+
+  content=$(sed '$ d' <<< "$response")
+  if [ "$content" != "log stream created" ]; then
+    printf "Failed to create log stream $stream_name with response: %s\n" "$content"
+    printf "Test create_stream: failed\n"
+    exit 1
+  fi
+
+  printf "Test create_stream: successful\n"
+  return 0
+}
+
 # Delete stream
 delete_stream () {
   response=$(curl "${curl_std_opts[@]}" --request DELETE "$parseable_url"/api/v1/logstream/"$stream_name")
@@ -51,9 +79,14 @@ delete_stream () {
   return 0
 }
 
+run_k6() {
+  k6 run -e P_URL="$parseable_url" -e P_STREAM="$stream_name" -e P_USERNAME="$username" -e P_PASSWORD="$password" "/tests/testcases/load.js"
+}
+
 printf "======= Starting load tests with k6 =======\n"
 printf "** Log stream name: %s **\n" "$stream_name"
 printf "====================================\n"
-k6 run -e P_URL="$parseable_url" -e P_STREAM="$stream_name" -e P_USERNAME="$username" -e P_PASSWORD="$password" ./k6.js
+create_stream
+run_k6
 delete_stream
 printf "======= Load tests completed ======\n"
