@@ -5,7 +5,7 @@ This repository contains integration tests and load generation tests for Parseab
 ### Build test container locally
 
 ```
-docker build . -t parseable/test:edge
+docker build . -t parseable/quest
 ```
 
 ### Running tests
@@ -13,5 +13,5 @@ docker build . -t parseable/test:edge
 Use the below format to run tests against a Parseable server. The first argument is the test name, the second argument is the server URL, the third argument is the username and the fourth argument is the password.
 
 ```
-docker run parseable/test:edge smoke http://demo.parseable.io parseable parseable
+docker run parseable/quest smoke http://demo.parseable.io parseable parseable
 ```
