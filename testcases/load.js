@@ -83,8 +83,8 @@ export default function () {
     const params = {
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Basic ${encodedCredentials}',
-            'X-P-STREAM': "`${__ENV.P_STREAM}`",
+            'Authorization': 'Basic '+`${encodedCredentials}`,
+            'X-P-STREAM': `${__ENV.P_STREAM}`,
             'X-P-META-Host': '10.116.0.3',
             'X-P-META-Source': 'quest-test',
         }
