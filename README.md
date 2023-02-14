@@ -2,6 +2,14 @@
 
 This repository contains integration tests and load generation tests for Parseable server. Tests are written in shell script and bundled in a container.
 
+### Use pre-built container
+
+Pre-built container is available on GitHub Container Registry. You can pull the container using the following command:
+
+```
+docker pull ghcr.io/parseablehq/quest:main
+```
+
 ### Build test container locally
 
 ```
@@ -13,11 +21,11 @@ docker build . -t parseable/quest:v0.1
 Use the below format to run tests against a Parseable server. The first argument is the test name, the second argument is the server URL, the third argument is the username and the fourth argument is the password.
 
 ```
-docker run parseable/quest:v0.1 smoke http://demo.parseable.io parseable parseable
+docker run ghcr.io/parseablehq/quest:main smoke https://demo.parseable.io parseable parseable
 ```
 
 If you want to run tests against a local Parseable server, you can use the following command:
 
 ```
-docker run parseable/quest:v0.1 load http://host.docker.internal:8000 admin admin --network="host"
+docker run ghcr.io/parseablehq/quest:main load http://host.docker.internal:8000 admin admin --network="host"
 ```
