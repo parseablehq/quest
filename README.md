@@ -29,3 +29,11 @@ If you want to run tests against a local Parseable server, you can use the follo
 ```
 docker run ghcr.io/parseablehq/quest:main load http://host.docker.internal:8000 admin admin --network="host"
 ```
+
+#### Kubernetes
+
+To run tests against a Parseable server running on Kubernetes, you can use the Job resource. Refer [sample job manifest](./kubernetes/job.yaml). Modify the `command` section to run the tests you want. You can run the job using the following command:
+
+```
+kubectl apply -f kubernetes/job.yaml
+```
