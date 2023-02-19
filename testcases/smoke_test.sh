@@ -21,7 +21,7 @@ stream_name=$2
 username=$3
 password=$4
 
-events=1000
+events=50
 input_file=$PWD/input.json
 
 curl_std_opts=( -sS --header 'Content-Type: application/json' -w '\n\n%{http_code}' -u "$username":"$password" )
