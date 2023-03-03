@@ -285,6 +285,8 @@ create_stream
 post_event_data
 list_log_streams
 get_streams_schema
+## sleep for a minute to ensure all data is pushed to backend
+sleep 30
 query_log_stream
 set_alert
 get_alert
