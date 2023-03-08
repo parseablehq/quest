@@ -93,11 +93,4 @@ export default function () {
     http.post(url, payload1(), params);
     http.post(url, payload2(), params);
     http.post(url, payload3(), params);
-
-    // if (!check(res, {'status code MUST be 200': (res) => res.status == 200,})) 
-    // {
-    //     console.log(res)
-    //     fail("exiting");
-    
-    // }
 }

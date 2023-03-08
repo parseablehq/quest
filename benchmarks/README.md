@@ -61,3 +61,18 @@ vus_max........................: 800    min=800       max=800
 ```
 
 NOTE: Benchmarks are nuanced and very much environment specific. So we recommend running benchmarks in the target environment to get an understanding of actual performance.
+
+### Test Parseable with K6
+
+We have created a [K6](https://k6.io) script to test Parseable. You can use this script to test Parseable in your environment. The script is available [here](./k6-load.js).
+
+#### Pre-requisites
+
+* [K6](https://k6.io) installed.
+* [Parseable](https://parseable.io) installed and running.
+
+#### Start the script
+
+```sh
+k6 run k6-load.js
+```
