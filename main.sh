@@ -20,6 +20,7 @@ mode=$1
 endpoint=$2
 username=$3
 password=$4
+schema_count="${5:=20}"
 
 stream_name=$(head /dev/urandom | tr -dc a-z | head -c10)
 
@@ -29,7 +30,7 @@ run_smoke_test () {
 }
 
 run_load_test () {
-  ./testcases/load_test.sh "$endpoint" "$stream_name" "$username" "$password"
+  ./testcases/load_test.sh "$endpoint" "$stream_name" "$username" "$password" "$schema_count"
   return $?
 }
 

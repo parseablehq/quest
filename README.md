@@ -18,7 +18,7 @@ docker build . -t parseable/quest:v0.1
 
 ### Running tests
 
-Use the below format to run tests against a Parseable server. The first argument is the test name, the second argument is the server URL, the third argument is the username and the fourth argument is the password.
+Use the below format to run tests against a Parseable server. The first argument is the test name, the second argument is the server URL, the third argument is the username and the fourth argument is the password. The `load` test has an optional fifth argument which is the number of different json formats that will be sent to a stream.
 
 ```
 docker run ghcr.io/parseablehq/quest:main smoke https://demo.parseable.io parseable parseable
@@ -27,7 +27,7 @@ docker run ghcr.io/parseablehq/quest:main smoke https://demo.parseable.io parsea
 If you want to run tests against a local Parseable server, you can use the following command:
 
 ```
-docker run ghcr.io/parseablehq/quest:main load http://host.docker.internal:8000 admin admin --network="host"
+docker run ghcr.io/parseablehq/quest:main load http://host.docker.internal:8000 admin admin 20 --network="host"
 ```
 
 #### Kubernetes
