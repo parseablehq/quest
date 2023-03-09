@@ -64,7 +64,7 @@ NOTE: Benchmarks are nuanced and very much environment specific. So we recommend
 
 ### Test Parseable with K6
 
-We have created a [K6](https://k6.io) script to test Parseable. You can use this script to test Parseable in your environment. The script is available [here](./k6-load.js).
+We have created a [K6](https://k6.io) script to load test a Parseable instance. The script is available [here](https://raw.githubusercontent.com/parseablehq/quest/main/testcases/load.js).
 
 #### Pre-requisites
 
@@ -74,5 +74,16 @@ We have created a [K6](https://k6.io) script to test Parseable. You can use this
 #### Start the script
 
 ```sh
-k6 run k6-load.js
+# P_URL - Parseable URL
+export P_URL="https://demo.parseable.io"
+# P_STREAM - Stream name to be created to send events
+export P_STREAM="test"
+# P_USERNAME - Parseable username
+export P_USERNAME="admin"
+# P_PASSWORD - Parseable password
+export P_PASSWORD="admin"
+# P_SCHEMA_COUNT - Number of different types of json formats to be sent to 
+# this stream
+export P_SCHEMA_COUNT=20
+k6 run https://raw.githubusercontent.com/parseablehq/quest/main/testcases/load.js
 ```
