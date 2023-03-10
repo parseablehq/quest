@@ -20,7 +20,8 @@ mode=$1
 endpoint=$2
 username=$3
 password=$4
-schema_count="${5:-20}"
+schema_count=$5
+: "${schema_count:=20}"
 
 stream_name=$(head /dev/urandom | tr -dc a-z | head -c10)
 
