@@ -1,68 +1,68 @@
-# Comparative performance analysis with Elastic
+# Benchmarks
 
-For the record, Elastic is much more matured software and has been around for a long time. They have a lot of experience in this domain and have been able to optimize their software to the best possible level. We are not trying to compete with them, but rather to provide a comparison of the performance of Parseable with Elastic.
+We use K6 to benchmark Parseable. This document contains the results of our benchmarks and steps to run your own benchmarks in your environment to understand Parseable's performance characteristics.
+### Recent Parseable Benchmarks
 
-Additionally, Elastic is a distributed system allowing cluster scaling. While, Parseable is a single node system as of now. We are working on a distributed version of Parseable and will update this section with the results. With these caveats in mind, let's look at the performance comparison.
+Configuration:
 
-### Elastic
+Parseable version: `v0.3.0`
+Server Instance: AWS EC2 `c4.2xlarge` (8 vCPU, 15 GiB RAM). Refer further details [here](https://aws.amazon.com/ec2/instance-types/).
+Client Instance: AWS EC2 `c4.8xlarge` (36 vCPU, 60 GiB RAM). Refer further details [here](https://aws.amazon.com/ec2/instance-types/).
 
-Currently we base our comparison with Elastic on their public benchmarks published here: [https://www.elastic.co/blog/benchmarking-and-sizing-your-elasticsearch-cluster-for-logs-and-metrics](https://www.elastic.co/blog/benchmarking-and-sizing-your-elasticsearch-cluster-for-logs-and-metrics).
+Conclusion:
 
-As per this benchmark, Elastic is able to ingest 22000 events per second per node. Node specs: 8 vCPU, 32 GiB RAM.
+- Parseable is CPU bound. CPU was 100% with lot of memory and disk iops left.
+- Since we had a single client, it needed much more CPU to saturate Parseable. It would be ideal to test with distributed clients. But we expect similar performance from Parseable.
+- Parseable reached `32829.535634/s` in this setup.
 
-### Parseable
-
-We deployed a single node with 4vCPU, 16 GiB RAM (i.e. 50% CPU and Memory). For load generation we used [K6](https://k6.io). With this server, Parseable is able to ingest ~28000 events per second, while memory usage at all times in the server was 25% (max 4 GiB). This indicates 50% less CPU and up to 80% less memory footprint.
-
-The load generation setup included two physical machines with 800 clients per machine (total 1600 clients). Combined these clients were able to push 28000 events per second.
-
-```bash
-running (1m00.1s), 000/800 VUs, 420535 complete and 0 interrupted iterations  
-default ✓ [======================================] 800 VUs  1m0s  
-  
-data_received..................: 192 MB  3.2 MB/s  
-data_sent......................: 757 MB  13 MB/s  
-http_req_blocked...............: avg=53.06µs  min=0s      med=3.99µs   max=1.13s    p(90)=6.68µs   p(95)=8.12µs  
-http_req_connecting............: avg=47.96µs  min=0s      med=0s       max=1.04s    p(90)=0s       p(95)=0s  
-http_req_duration..............: avg=37.75ms  min=2.96ms  med=35.77ms  max=323.91ms p(90)=48.25ms  p(95)=54.61ms  
-{ expected_response:true }...: avg=37.75ms  min=2.96ms  med=35.77ms  max=323.91ms p(90)=48.25ms  p(95)=54.61ms  
-http_req_failed................: 0.00%   ✓ 0            ✗ 1261605  
-http_req_receiving.............: avg=48.71µs  min=9.36µs  med=21.77µs  max=165.59ms p(90)=30.99µs  p(95)=51µs  
-http_req_sending...............: avg=28.85µs  min=5.8µs   med=16.66µs  max=159ms    p(90)=25.75µs  p(95)=35.12µs  
-http_req_tls_handshaking.......: avg=0s       min=0s      med=0s       max=0s       p(90)=0s       p(95)=0s  
-http_req_waiting...............: avg=37.67ms  min=2.91ms  med=35.71ms  max=310.31ms p(90)=48.15ms  p(95)=54.39ms  
-http_reqs......................: 1261605 20996.427837/s  
-iteration_duration.............: avg=114.07ms min=37.32ms med=107.49ms max=1.31s    p(90)=141.88ms p(95)=153.58ms  
-iterations.....................: 420535  6998.809279/s  
-vus............................: 800     min=800        max=800  
-vus_max........................: 800     min=800        max=800
-```
+Detailed Outcome:
 
 ```bash
-running (1m00.1s), 000/800 VUs, 141384 complete and 0 interrupted iterations  
-default ✓ [======================================] 800 VUs  1m0s  
-  
-data_received..................: 65 MB  1.1 MB/s  
-data_sent......................: 255 MB 4.2 MB/s  
-http_req_blocked...............: avg=92.24µs  min=1.28µs   med=4.06µs  max=148.3ms  p(90)=5.01µs   p(95)=5.61µs  
-http_req_connecting............: avg=86.1µs   min=0s       med=0s      max=148.25ms p(90)=0s       p(95)=0s  
-http_req_duration..............: avg=112.84ms min=441.39µs med=29.59ms max=59.46s   p(90)=39.35ms  p(95)=42.01ms  
-{ expected_response:true }...: avg=112.84ms min=441.39µs med=29.59ms max=59.46s   p(90)=39.35ms  p(95)=42.01ms  
-http_req_failed................: 0.00%  ✓ 0           ✗ 424152  
-http_req_receiving.............: avg=24.51µs  min=10.54µs  med=20.66µs max=55.71ms  p(90)=30.61µs  p(95)=33.86µs  
-http_req_sending...............: avg=42.18µs  min=10.84µs  med=15.68µs max=40.16ms  p(90)=24.57µs  p(95)=27.67µs  
-http_req_tls_handshaking.......: avg=0s       min=0s       med=0s      max=0s       p(90)=0s       p(95)=0s  
-http_req_waiting...............: avg=112.78ms min=406.97µs med=29.54ms max=59.46s   p(90)=39.3ms   p(95)=41.96ms  
-http_reqs......................: 424152 7062.427709/s  
-iteration_duration.............: avg=339.23ms min=4.06ms   med=90.44ms max=59.65s   p(90)=118.18ms p(95)=125.43ms  
-iterations.....................: 141384 2354.14257/s  
-vus............................: 800    min=800       max=800  
-vus_max........................: 800    min=800       max=800
+k6 run load.js --vus=700 --duration=5m
+
+          /\      |‾‾| /‾‾/   /‾‾/   
+     /\  /  \     |  |/  /   /  /    
+    /  \/    \    |     (   /   ‾‾\  
+   /          \   |  |\  \ |  (‾)  | 
+  / __________ \  |__| \__\ \_____/ .io
+
+  execution: local
+     script: load.js
+     output: -
+
+  scenarios: (100.00%) 1 scenario, 700 max VUs, 5m30s max duration (incl. graceful stop):
+           * default: 700 looping VUs for 5m0s (gracefulStop: 30s)
+
+
+     data_received..................: 1.5 GB  5.0 MB/s
+     data_sent......................: 8.0 GB  27 MB/s
+     http_req_blocked...............: avg=19.35µs min=0s       med=4.78µs   max=431.69ms p(90)=7.35µs   p(95)=9.81µs  
+     http_req_connecting............: avg=3.79µs  min=0s       med=0s       max=73.48ms  p(90)=0s       p(95)=0s      
+     http_req_duration..............: avg=76.17ms min=344.43µs med=65.01ms  max=636.72ms p(90)=128.99ms p(95)=149.54ms
+       { expected_response:true }...: avg=76.17ms min=344.43µs med=65.01ms  max=636.72ms p(90)=128.99ms p(95)=149.54ms
+     http_req_failed................: 0.00%   ✓ 0            ✗ 9858220
+     http_req_receiving.............: avg=541.7µs min=0s       med=22.49µs  max=218.44ms p(90)=164.95µs p(95)=389.52µs
+     http_req_sending...............: avg=90.17µs min=0s       med=21.07µs  max=485.95ms p(90)=40.19µs  p(95)=146.16µs
+     http_req_tls_handshaking.......: avg=0s      min=0s       med=0s       max=0s       p(90)=0s       p(95)=0s      
+     http_req_waiting...............: avg=75.54ms min=299.31µs med=64.81ms  max=482.88ms p(90)=127.43ms p(95)=147.69ms
+     http_reqs......................: 9858220 32829.535634/s
+     iteration_duration.............: avg=426.2ms min=195.51ms med=422.99ms max=1.18s    p(90)=499.06ms p(95)=522.91ms
+     iterations.....................: 492911  1641.476782/s
+     vus............................: 700     min=700        max=700  
+     vus_max........................: 700     min=700        max=700  
+
+
+running (5m00.3s), 000/700 VUs, 492911 complete and 0 interrupted iterations
+default ✓ [======================================] 700 VUs  5m0s
 ```
+
+Grafana Dashboard:
+
+![Grafana Dashboard](../images/grafana.png)
 
 NOTE: Benchmarks are nuanced and very much environment specific. So we recommend running benchmarks in the target environment to get an understanding of actual performance.
 
-### Test Parseable with K6
+### Run your own load tests with K6
 
 We have created a [K6](https://k6.io) script to load test a Parseable instance. The script is available [here](https://raw.githubusercontent.com/parseablehq/quest/main/testcases/load.js).
 
@@ -72,6 +72,8 @@ We have created a [K6](https://k6.io) script to load test a Parseable instance. 
 * [Parseable](https://parseable.io) installed and running.
 
 #### Start the script
+
+Make sure to change the env vars as per your setup. Also fine tune `vu` and `duration` as per your needs.
 
 ```sh
 # P_URL - Parseable URL
@@ -85,5 +87,11 @@ export P_PASSWORD="admin"
 # P_SCHEMA_COUNT - Number of different types of json formats to be sent to 
 # this stream
 export P_SCHEMA_COUNT=20
-k6 run https://raw.githubusercontent.com/parseablehq/quest/main/testcases/load.js
+k6 run --vus=700 --duration=5m https://raw.githubusercontent.com/parseablehq/quest/main/testcases/load.js
 ```
+
+### Elastic
+
+Currently Elastic public benchmarks published here: [https://www.elastic.co/blog/benchmarking-and-sizing-your-elasticsearch-cluster-for-logs-and-metrics](https://www.elastic.co/blog/benchmarking-and-sizing-your-elasticsearch-cluster-for-logs-and-metrics).
+
+As per this benchmark, Elastic is able to ingest 22000 events per second per node. Node specs: 8 vCPU, 32 GiB RAM.

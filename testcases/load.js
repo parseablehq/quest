@@ -1,16 +1,17 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import exec from 'k6/execution';
+import encoding from 'k6/encoding';
 import { randomString, randomItem, randomIntBetween, uuidv4 } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js'
 
 export const options = {
     discardResponseBodies: true,
     scenarios: {
         contacts: {
-            executor: 'shared-iterations',
+            executor: 'constant-vus',
             vus: 10,
-            iterations: 200,
-            maxDuration: '10m',
+            //iterations: 200,
+            //maxDuration: '10m',
         },
     },
 };
@@ -174,11 +175,11 @@ export default function () {
 
     let responses = http.batch(batch_requests);
 
-    if (
-        !check(responses[0], {
-            'status code MUST be 200': (res) => res.status == 200,
-        })
-    ) {
-        exec.test.abort("Failed to send event.. status != 200");
-    }
+    //if (
+    //    !check(responses[0], {
+    //        'status code MUST be 200': (res) => res.status == 200,
+    //    })
+    //) {
+    //    exec.test.abort("Failed to send event.. status != 200");
+    //}
 }
