@@ -3,19 +3,19 @@
 We use K6 to benchmark Parseable. This document contains the results of our benchmarks and steps to run your own benchmarks in your environment to understand Parseable's performance characteristics.
 ## Parseable
 
-Configuration:
+#### Configuration
 
-Parseable version: `v0.3.0`
-Server Instance: AWS EC2 `c4.2xlarge` (8 vCPU, 15 GiB RAM). Refer further details [here](https://aws.amazon.com/ec2/instance-types/).
-Client Instance: AWS EC2 `c4.8xlarge` (36 vCPU, 60 GiB RAM). Refer further details [here](https://aws.amazon.com/ec2/instance-types/).
+- Parseable version: `v0.3.0`
+- Server Instance: AWS EC2 `c4.2xlarge` (8 vCPU, 15 GiB RAM). Refer further details [here](https://aws.amazon.com/ec2/instance-types/).
+- Client Instance: AWS EC2 `c4.8xlarge` (36 vCPU, 60 GiB RAM). Refer further details [here](https://aws.amazon.com/ec2/instance-types/).
 
-Conclusion:
+#### Conclusion
 
 - Parseable is CPU bound. CPU was 100% with lot of memory and disk iops left.
 - Since we had a single client, it needed much more CPU to saturate Parseable. It would be ideal to test with distributed clients. But we expect similar performance from Parseable.
 - Parseable reached `32829.535634/s` in this setup.
 
-Detailed Outcome:
+#### Detailed Outcome
 
 ```bash
 k6 run load.js --vus=700 --duration=5m
