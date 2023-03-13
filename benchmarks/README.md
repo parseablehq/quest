@@ -89,8 +89,7 @@ export P_PASSWORD="admin"
 export P_SCHEMA_COUNT=20
 k6 run --vus=700 --duration=5m https://raw.githubusercontent.com/parseablehq/quest/main/testcases/load.js
 ```
-
-### Elastic
+## Elastic
 
 Currently Elastic public benchmarks published here: [https://www.elastic.co/blog/benchmarking-and-sizing-your-elasticsearch-cluster-for-logs-and-metrics](https://www.elastic.co/blog/benchmarking-and-sizing-your-elasticsearch-cluster-for-logs-and-metrics).
 
