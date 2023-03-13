@@ -1,7 +1,7 @@
 # Benchmarks
 
 We use K6 to benchmark Parseable. This document contains the results of our benchmarks and steps to run your own benchmarks in your environment to understand Parseable's performance characteristics.
-### Recent Parseable Benchmarks
+## Parseable
 
 Configuration:
 
