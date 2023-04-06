@@ -28,7 +28,9 @@ curl_std_opts=( -sS --header 'Content-Type: application/json' -w '\n\n%{http_cod
 
 alert_body='{"alerts":[{"message":"server side error occurred","name":"Status Alert","rule":{"config":{"column":"status","operator":"notEqualTo","repeats":2,"value":500},"type":"column"},"targets":[{"endpoint":"https://webhook.site/6b184e08-82c4-46dc-b344-5b85414c2a71","headers":{},"repeat":{"interval":"30s","times":5},"skip_tls_check":false,"type":"webhook"},{"endpoint":"https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX","repeat":{"interval":"3m 20s","times":5},"type":"slack"}]}],"version":"v1"}'
 
-schema_body='{"fields":[{"name":"p_timestamp","data_type":{"Timestamp":["Millisecond",null]},"nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"bytes","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"datetime","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"host","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"method","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"p_metadata","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"p_tags","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"protocol","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"referer","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"request","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"status","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"user-identifier","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}}],"metadata":{}}'
+schema_body='{"fields":[{"name":"bytes","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"datetime","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"host","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"method","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"p_metadata","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"p_tags","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"p_timestamp","data_type":{"Timestamp":["Millisecond",null]},"nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"protocol","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"referer","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"request","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"status","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"user-identifier","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}}],"metadata":{}}'
+
+retention_body='[{"description":"delete after 20 days","action":"delete","duration":"20d"}]'
 
 # Generate events using flog (https://github.com/mingrammer/flog) and store it in input.json file
 create_input_file () {
@@ -243,6 +245,63 @@ get_alert () {
   return 0
 }
 
+
+# Set Retention
+set_retention () {
+  response=$(curl "${curl_std_opts[@]}" --request PUT "$parseable_url"/api/v1/logstream/"$stream_name"/retention --data-raw "$retention_body")
+  if [ $? -ne 0 ]; then
+    printf "Failed to set retention for %s with exit code: %s\n" "$stream_name" "$?"
+    printf "Test set_retention: failed\n"
+    exit 1
+  fi
+
+  http_code=$(tail -n1 <<< "$response")
+  if [ "$http_code" -ne 200 ]; then
+    printf "Failed to set retention for %s with http code: %s and response: %s\n" "$stream_name" "$http_code" "$content"
+    printf "Test set_retention: failed\n"
+    exit 1
+  fi
+
+  content=$(sed '$ d' <<< "$response")
+  if [ "$content" != "set retention configuration for log stream $stream_name" ]; then
+    printf "Failed to set retention on log stream %s with response: %s\n" "$stream_name" "$content"
+    printf "Test set_retention: failed\n"
+    exit 1
+  fi
+
+  printf "Test set_retention: successful\n"
+  return 0
+}
+
+# Get Retention
+get_retention () {
+  response=$(curl "${curl_std_opts[@]}" --request GET "$parseable_url"/api/v1/logstream/"$stream_name"/retention)
+  if [ $? -ne 0 ]; then
+    printf "Failed to get retention for %s with exit code: %s\n" "$stream_name" "$?"
+    printf "Test get_retention: failed\n"
+    exit 1
+  fi
+
+  http_code=$(tail -n1 <<< "$response")
+  if [ "$http_code" -ne 200 ]; then
+    printf "Failed to get retention for %s with http code: %s and response: %s" "$stream_name" "$http_code" "$content"
+    printf "Test get_retention: failed\n"
+    exit 1
+  fi
+  
+  content=$(sed '$ d' <<< "$response")
+  if [ "$content" != "$retention_body" ]; then
+    printf "Get retention response doesn't match with retention config returned.\n"
+    printf "retention set: %s\n" "$retention_body"
+    printf "retention returned: %s\n" "$content"
+    printf "Test get_retention: failed\n"
+    exit 1
+  fi
+
+  printf "Test get_retention: successful\n"
+  return 0
+}
+
 # Delete stream
 delete_stream () {
   response=$(curl "${curl_std_opts[@]}" --request DELETE "$parseable_url"/api/v1/logstream/"$stream_name")
@@ -274,6 +333,7 @@ delete_stream () {
 cleanup () {
   rm -rf "$input_file"
   rm -rf "$PWD/logstream_test.json"
+  rm -rf "$PWD/log_streams.json"
   return $?
 }
 
@@ -290,6 +350,8 @@ sleep 65
 query_log_stream
 set_alert
 get_alert
+set_retention
+get_retention
 delete_stream
 cleanup
 printf "======= Smoke tests completed ======\n"
