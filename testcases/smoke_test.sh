@@ -40,6 +40,21 @@ create_input_file () {
   return $?
 }
 
+# stream does not exists
+stream_does_not_exists() {
+  response=$(curl "${curl_std_opts[@]}" --request POST "$parseable_url"/api/v1/logstream/"$stream_name" --data-raw "[{}]")
+
+  http_code=$(tail -n1 <<< "$response")
+  if [ "$http_code" -ne 404 ]; then
+    printf "Server returned http code: %s and response: %s\n" "$http_code" "$content"
+    printf "Test stream_does_not_exists: failed\n"
+    exit 1
+  fi
+
+  printf "Test stream_does_not_exists: successful\n"
+  return 0
+}
+
 # Create stream
 create_stream () {
   response=$(curl "${curl_std_opts[@]}" --request PUT "$parseable_url"/api/v1/logstream/"$stream_name")
@@ -341,6 +356,7 @@ printf "======= Starting smoke tests =======\n"
 printf "** Log stream name: %s **\n" "$stream_name"
 printf "** Event count: %s **\n" "$events"
 printf "====================================\n"
+stream_does_not_exists
 create_stream
 post_event_data
 list_log_streams
