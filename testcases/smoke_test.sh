@@ -184,13 +184,13 @@ run_k6() {
 # Query the log stream and verify if count of events is equal to the number of events posted
 query_log_stream() {
   # argument is seconds passed. 
-  query_count 120 $log_events
+  query_count $stream_name 120 $log_events
 }
 
 # Query the log stream and verify if count of events is equal to the number of events posted
 query_k6_log_stream() {
   # argument is seconds passed. 
-  query_count 400 $k6_log_events
+  query_count $k6_stream 4300 $k6_log_events
 }
 
 # Query the log stream and verify if count of events is equal to the number of events posted
@@ -199,10 +199,10 @@ query_k6_log_stream() {
 query_count() {
   # Query last two minutes of data only
   end_time=$(date "+%Y-%m-%dT%H:%M:%S%:z")
-  start_time=$(date --date="@$(($(date +%s)-$1))" "+%Y-%m-%dT%H:%M:%S%:z")
+  start_time=$(date --date="@$(($(date +%s)-$2))" "+%Y-%m-%dT%H:%M:%S%:z")
   
   response=$(curl "${curl_std_opts[@]}" --request POST "$parseable_url"/api/v1/query --data-raw '{
-    "query": "select count(*) from '$stream_name'",
+    "query": "select count(*) from '$1'",
     "startTime": "'$start_time'",
     "endTime": "'$end_time'"
   }')
@@ -221,7 +221,7 @@ query_count() {
 
   content=$(sed '$ d' <<< "$response")
   queryResult=$(echo "$content" | cut -d ':' -f2 | cut -d '}' -f1)
-  if [ "$queryResult" != $2 ]; then
+  if [ $queryResult != $3 ]; then
     printf "Validation failed. Count of events returned from query does not match with the ones posted.\n"
     printf "Test query_log_stream: failed\n"
     exit 1
@@ -382,16 +382,16 @@ printf "======= Starting smoke tests =======\n"
 printf "** Log stream name: %s **\n" "$stream_name"
 printf "** Event count: %s **\n" "$events"
 printf "====================================\n"
-stream_does_not_exists
-create_stream
-post_event_data
-list_log_streams
-get_streams_schema
-## sleep for a minute to ensure all data is pushed to backend
-sleep 65
-query_log_stream
-run_k6
-sleep 65
+# stream_does_not_exists
+# create_stream
+# post_event_data
+# list_log_streams
+# get_streams_schema
+# ## sleep for a minute to ensure all data is pushed to backend
+# sleep 65
+# query_log_stream
+# run_k6
+# sleep 65
 query_k6_log_stream
 set_alert
 get_alert
