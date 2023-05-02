@@ -21,7 +21,9 @@ stream_name=$2
 username=$3
 password=$4
 
-events=50
+k6_stream="${stream_name}k6"
+log_events=50
+k6_log_events=6000
 input_file=$PWD/input.json
 
 curl_std_opts=( -sS --header 'Content-Type: application/json' -w '\n\n%{http_code}' -u "$username":"$password" )
@@ -34,7 +36,7 @@ retention_body='[{"description":"delete after 20 days","action":"delete","durati
 
 # Generate events using flog (https://github.com/mingrammer/flog) and store it in input.json file
 create_input_file () {
-  flog -f json -n "$events" -t log -o "$input_file"
+  flog -f json -n "$log_events" -t log -o "$input_file"
   sleep 2
   sed -i '1s/^/[/;$!s/$/,/;$s/$/]/' "$input_file"
   return $?
@@ -169,12 +171,36 @@ get_streams_schema () {
   return 0
 }
 
+# run k6 smoke test which lasts for ~5min
+run_k6() {
+  k6 run -e P_URL="$parseable_url" -e P_USERNAME="$username" -e P_PASSWORD="$password" -e P_STREAM="$k6_stream" smoke.js
+  if [ $? -ne 0 ]; then
+    printf "Failed to run k6 test on %s with exit code: %s\n" "$k6_stream" "$?"
+    printf "Test post_event_data: failed\n"
+    exit 1
+  fi  
+}
+
 # Query the log stream and verify if count of events is equal to the number of events posted
 query_log_stream() {
+  # argument is seconds passed. 
+  query_count 120 $log_events
+}
+
+# Query the log stream and verify if count of events is equal to the number of events posted
+query_k6_log_stream() {
+  # argument is seconds passed. 
+  query_count 400 $k6_log_events
+}
+
+# Query the log stream and verify if count of events is equal to the number of events posted
+# $1 is start time
+# $2 is end time
+query_count() {
   # Query last two minutes of data only
   end_time=$(date "+%Y-%m-%dT%H:%M:%S%:z")
-  start_time=$(date --date="@$(($(date +%s)-120))" "+%Y-%m-%dT%H:%M:%S%:z")
-
+  start_time=$(date --date="@$(($(date +%s)-$1))" "+%Y-%m-%dT%H:%M:%S%:z")
+  
   response=$(curl "${curl_std_opts[@]}" --request POST "$parseable_url"/api/v1/query --data-raw '{
     "query": "select count(*) from '$stream_name'",
     "startTime": "'$start_time'",
@@ -188,14 +214,14 @@ query_log_stream() {
 
   http_code=$(tail -n1 <<< "$response")
   if [ "$http_code" -ne 200 ]; then
-    printf "Failed to query stream %s with http code: %s and response: %s" "$stream_name" "$http_code" "$content"
+    printf "Failed to query stream %s with http code: %s and response: %s" "$stream_name" "$http_code" "$response"
     printf "Test query_log_stream: failed\n"
     exit 1
   fi
 
   content=$(sed '$ d' <<< "$response")
   queryResult=$(echo "$content" | cut -d ':' -f2 | cut -d '}' -f1)
-  if [ "$queryResult" != $events ]; then
+  if [ "$queryResult" != $2 ]; then
     printf "Validation failed. Count of events returned from query does not match with the ones posted.\n"
     printf "Test query_log_stream: failed\n"
     exit 1
@@ -364,6 +390,9 @@ get_streams_schema
 ## sleep for a minute to ensure all data is pushed to backend
 sleep 65
 query_log_stream
+run_k6
+sleep 65
+query_k6_log_stream
 set_alert
 get_alert
 set_retention
