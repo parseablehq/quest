@@ -1,5 +1,5 @@
 import http from 'k6/http';
-import sleep from 'k6';
+import { sleep } from 'k6';
 // import check from 'k6';
 // import exec from 'k6/execution';
 import encoding from 'k6/encoding';
