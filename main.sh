@@ -35,7 +35,6 @@ run_load_test () {
   return $?
 }
 
-sleep 20
 case "$mode" in
    "smoke") run_smoke_test 
    ;;

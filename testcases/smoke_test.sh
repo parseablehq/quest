@@ -21,16 +21,17 @@ stream_name=$2
 username=$3
 password=$4
 
-k6_stream="${stream_name}k6"
 log_events=50
 k6_log_events=6000
+expectedCount=$((k6_log_events + log_events))
+
 input_file=$PWD/input.json
 
 curl_std_opts=( -sS --header 'Content-Type: application/json' -w '\n\n%{http_code}' -u "$username":"$password" )
 
 alert_body='{"alerts":[{"message":"server side error occurred","name":"Status Alert","rule":{"config":{"column":"status","operator":"notEqualTo","repeats":2,"value":500},"type":"column"},"targets":[{"endpoint":"https://webhook.site/6b184e08-82c4-46dc-b344-5b85414c2a71","headers":{},"repeat":{"interval":"30s","times":5},"skip_tls_check":false,"type":"webhook"},{"endpoint":"https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX","repeat":{"interval":"3m 20s","times":5},"type":"slack"}]}],"version":"v1"}'
 
-schema_body='{"fields":[{"name":"bytes","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"datetime","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"host","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"method","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"p_metadata","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"p_tags","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"p_timestamp","data_type":{"Timestamp":["Millisecond",null]},"nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"protocol","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"referer","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"request","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"status","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"user-identifier","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}}],"metadata":{}}'
+schema_body='{"fields":[{"name":"app_meta","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"bytes","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"datetime","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"device_id","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"host","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"level","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"location","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"message","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"method","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"os","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"p_metadata","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"p_tags","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"p_timestamp","data_type":{"Timestamp":["Millisecond",null]},"nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"process_id","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"protocol","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"referer","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"request","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"request_body","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"response_time","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"runtime","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"session_id","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"source_time","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"status","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"status_code","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"timezone","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"user-identifier","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"user_agent","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"user_id","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"uuid","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"version","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}}],"metadata":{}}'
 
 retention_body='[{"description":"delete after 20 days","action":"delete","duration":"20d"}]'
 
@@ -86,6 +87,8 @@ create_stream () {
 }
 
 # Post log data to the stream
+# first $log_events events using the flog tool
+# then $k6_log_events events using the k6 tool
 post_event_data () {
   create_input_file
   if [ $? -ne 0 ]; then
@@ -105,6 +108,14 @@ post_event_data () {
   http_code=$(tail -n1 <<< "$response")
   if [ "$http_code" -ne 200 ]; then
     printf "Failed to create log stream %s with http code: %s and response: %s\n" "$stream_name" "$http_code" "$content"
+    printf "Test post_event_data: failed\n"
+    exit 1
+  fi
+
+  # Post k6 events for ~5 mins
+  k6 run -e P_URL="$parseable_url" -e P_USERNAME="$username" -e P_PASSWORD="$password" -e P_STREAM="$stream_name" "/tests/testcases/smoke.js"
+  if [ $? -ne 0 ]; then
+    printf "Failed to post k6 events on %s with exit code: %s\n" "$stream_name" "$?"
     printf "Test post_event_data: failed\n"
     exit 1
   fi
@@ -171,35 +182,11 @@ get_streams_schema () {
   return 0
 }
 
-# run k6 smoke test which lasts for ~5min
-run_k6() {
-  k6 run -e P_URL="$parseable_url" -e P_USERNAME="$username" -e P_PASSWORD="$password" -e P_STREAM="$k6_stream" smoke.js
-  if [ $? -ne 0 ]; then
-    printf "Failed to run k6 test on %s with exit code: %s\n" "$k6_stream" "$?"
-    printf "Test post_event_data: failed\n"
-    exit 1
-  fi  
-}
-
 # Query the log stream and verify if count of events is equal to the number of events posted
 query_log_stream() {
-  # argument is seconds passed. 
-  query_count 120 $log_events
-}
-
-# Query the log stream and verify if count of events is equal to the number of events posted
-query_k6_log_stream() {
-  # argument is seconds passed. 
-  query_count 400 $k6_log_events
-}
-
-# Query the log stream and verify if count of events is equal to the number of events posted
-# $1 is start time
-# $2 is end time
-query_count() {
-  # Query last two minutes of data only
+  # Query last 10 minutes of data only
   end_time=$(date "+%Y-%m-%dT%H:%M:%S%:z")
-  start_time=$(date --date="@$(($(date +%s)-$1))" "+%Y-%m-%dT%H:%M:%S%:z")
+  start_time=$(date --date="@$(($(date +%s)-600))" "+%Y-%m-%dT%H:%M:%S%:z")
   
   response=$(curl "${curl_std_opts[@]}" --request POST "$parseable_url"/api/v1/query --data-raw '{
     "query": "select count(*) from '$stream_name'",
@@ -221,8 +208,8 @@ query_count() {
 
   content=$(sed '$ d' <<< "$response")
   queryResult=$(echo "$content" | cut -d ':' -f2 | cut -d '}' -f1)
-  if [ "$queryResult" != $2 ]; then
-    printf "Validation failed. Count of events returned from query does not match with the ones posted.\n"
+  if [ "$queryResult" != "$expectedCount" ]; then
+    printf "Validation failed. Count of events returned from query (%s) does not match total expected events (%s).\n" "$queryResult" "$expectedCount"
     printf "Test query_log_stream: failed\n"
     exit 1
   fi
@@ -285,7 +272,6 @@ get_alert () {
   printf "Test get_alert: successful\n"
   return 0
 }
-
 
 # Set Retention
 set_retention () {
@@ -380,7 +366,7 @@ cleanup () {
 
 printf "======= Starting smoke tests =======\n"
 printf "** Log stream name: %s **\n" "$stream_name"
-printf "** Event count: %s **\n" "$events"
+printf "** Event count: %s **\n" "$expectedCount"
 printf "====================================\n"
 stream_does_not_exists
 create_stream
@@ -390,9 +376,6 @@ get_streams_schema
 ## sleep for a minute to ensure all data is pushed to backend
 sleep 65
 query_log_stream
-run_k6
-sleep 65
-query_k6_log_stream
 set_alert
 get_alert
 set_retention
