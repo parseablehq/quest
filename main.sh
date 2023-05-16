@@ -22,6 +22,10 @@ username=$3
 password=$4
 schema_count=$5
 : "${schema_count:=20}"
+vus=$6
+: "${vus:=10}"
+duration=$7
+: "${duration:="5m"}"
 
 stream_name=$(head /dev/urandom | tr -dc a-z | head -c10)
 
@@ -31,7 +35,7 @@ run_smoke_test () {
 }
 
 run_load_test () {
-  ./testcases/load_test.sh "$endpoint" "$stream_name" "$username" "$password" "$schema_count"
+  ./testcases/load_test.sh "$endpoint" "$stream_name" "$username" "$password" "$schema_count" "$vus" "$duration"
   return $?
 }
 
