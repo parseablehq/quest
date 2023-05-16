@@ -81,7 +81,7 @@ delete_stream () {
 }
 
 run_k6() {
-  k6 run -e P_URL="$parseable_url" -e P_STREAM="$stream_name" -e P_USERNAME="$username" -e P_PASSWORD="$password" -e P_SCHEMA_COUNT="$count" "/tests/testcases/load.js"
+  k6 run -e P_URL="$parseable_url" -e P_STREAM="$stream_name" -e P_USERNAME="$username" -e P_PASSWORD="$password" -e P_SCHEMA_COUNT="$count" "/tests/testcases/load.js" --vus=10 --duration="5m"
 }
 
 printf "======= Starting load tests with k6 =======\n"
