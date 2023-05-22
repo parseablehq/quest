@@ -27,13 +27,22 @@ expectedCount=$((k6_log_events + log_events))
 
 input_file=$PWD/input.json
 
-curl_std_opts=( -sS --header 'Content-Type: application/json' -w '\n\n%{http_code}' -u "$username":"$password" )
-
 alert_body='{"alerts":[{"message":"server side error occurred","name":"Status Alert","rule":{"config":{"column":"status","operator":"notEqualTo","repeats":2,"value":500},"type":"column"},"targets":[{"endpoint":"https://webhook.site/6b184e08-82c4-46dc-b344-5b85414c2a71","headers":{},"repeat":{"interval":"30s","times":5},"skip_tls_check":false,"type":"webhook"},{"endpoint":"https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX","repeat":{"interval":"3m 20s","times":5},"type":"slack"}]}],"version":"v1"}'
 
 schema_body='{"fields":[{"name":"app_meta","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"bytes","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"datetime","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"device_id","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"host","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"level","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"location","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"message","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"method","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"os","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"p_metadata","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"p_tags","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"p_timestamp","data_type":{"Timestamp":["Millisecond",null]},"nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"process_id","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"protocol","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"referer","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"request","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"request_body","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"response_time","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"runtime","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"session_id","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"source_time","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"status","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"status_code","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"timezone","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"user-identifier","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"user_agent","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"user_id","data_type":"Int64","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"uuid","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}},{"name":"version","data_type":"Utf8","nullable":true,"dict_id":0,"dict_is_ordered":false,"metadata":{}}],"metadata":{}}'
 
 retention_body='[{"description":"delete after 20 days","action":"delete","duration":"20d"}]'
+
+test_user="alice"
+role_editor='[{"role": "editor"}]'
+
+set_std_opts() {
+  local username=$1
+  local password=$2
+  curl_std_opts=( -sS --header 'Content-Type: application/json' -w '\n\n%{http_code}' -u "$username":"$password" )
+}
+
+set_std_opts "$username" "$password"
 
 # Generate events using flog (https://github.com/mingrammer/flog) and store it in input.json file
 create_input_file () {
@@ -329,6 +338,118 @@ get_retention () {
   return 0
 }
 
+# create User
+put_user () {
+  response=$(curl "${curl_std_opts[@]}" --request PUT "$parseable_url"/api/v1/user/"$test_user")
+  if [ $? -ne 0 ]; then
+    printf "Failed to create user %s with exit code: %s\n" "$test_user" "$?"
+    printf "Test create_user: failed\n"
+    exit 1
+  fi
+
+  http_code=$(tail -n1 <<< "$response")
+  if [ "$http_code" -ne 200 ]; then
+    printf "Failed to create user %s with http code: %s and response: %s\n" "$test_user" "$http_code" "$content"
+    printf "Test set_retention: failed\n"
+    exit 1
+  fi
+
+  # set curl options to user incluse test user and the passphrase  
+  test_password=$(sed -n '1p' <<< "$response")
+
+  printf "Test create_user: successful\n"
+  return 0
+}
+
+put_role() {
+  response=$(curl "${curl_std_opts[@]}" --request PUT "$parseable_url"/api/v1/user/"$test_user"/roles --data-raw "$role_editor")
+  if [ $? -ne 0 ]; then
+    printf "Failed put role for user %s with exit code: %s\n" "$test_user" "$?"
+    printf "Test create_user: failed\n"
+    exit 1
+  fi
+
+  http_code=$(tail -n1 <<< "$response")
+  if [ "$http_code" -ne 200 ]; then
+    printf "Failed to put role for user %s with http code: %s and response: %s\n" "$test_user" "$http_code" "$response"
+    printf "Test set_retention: failed\n"
+    exit 1
+  fi
+
+  printf "Test put_role: successful\n"
+  return 0
+}
+
+# check api access for this new user
+check_api_access() {
+  # can call non protected api
+  response=$(curl "${curl_std_opts[@]}" --request GET "$parseable_url"/api/v1/liveness)
+  if [ $? -ne 0 ]; then
+    printf "Failed to get liveness api for new user with exit code: %s\n" "$?"
+    printf "Test check_api_access: failed\n"
+    exit 1
+  fi
+
+  http_code=$(tail -n1 <<< "$response")
+  if [ "$http_code" -ne 200 ]; then
+    printf "Failed to get liveness api for new user with http code: %s and response: %s", "$http_code" "$response"
+    printf "Test check_api_access: failed\n"
+    exit 1
+  fi
+
+  # can call protected api with access
+  response=$(curl "${curl_std_opts[@]}" --request GET "$parseable_url"/api/v1/logstream)
+  if [ $? -ne 0 ]; then
+    printf "Failed to get logstream api for new user with exit code: %s\n" "$?"
+    printf "Test check_api_access: failed\n"
+    exit 1
+  fi
+  
+  http_code=$(tail -n1 <<< "$response")
+  if [ "$http_code" -ne 200 ]; then
+    printf "Failed to get logstream api for new user with http code: %s and response: %s", "$http_code" "$response"
+    printf "Test check_api_access: failed\n"
+    exit 1
+  fi
+
+  # cannot call protected api without access
+  response=$(curl "${curl_std_opts[@]}" --request DELETE "$parseable_url"/api/v1/logstream/"$stream_name")
+  if [ $? -ne 0 ]; then
+    printf "Failed when calling delete stream api for new user with exit code: %s\n" "$?"
+    printf "Test check_api_access: failed\n"
+    exit 1
+  fi
+  
+  http_code=$(tail -n1 <<< "$response")
+  if [ "$http_code" -ne 401 ]; then
+    printf "Delete api did not return unauthorized (403) for user %s, http code: %s and response: %s", "$test_user", "$http_code" "$response"
+    printf "Test check_api_access: failed\n"
+    exit 1
+  fi
+
+  printf "Test check_api_access: successful\n"
+  return 0
+}
+
+delete_user() {
+  response=$(curl "${curl_std_opts[@]}" --request DELETE "$parseable_url"/api/v1/user/"$test_user")
+  if [ $? -ne 0 ]; then
+    printf "Failed delete user %s with exit code: %s\n" "$test_user" "$?"
+    printf "Test delete_user: failed\n"
+    exit 1
+  fi
+
+  http_code=$(tail -n1 <<< "$response")
+  if [ "$http_code" -ne 200 ]; then
+    printf "Failed to delete user %s with http code: %s and response: %s\n" "$test_user" "$http_code" "$content"
+    printf "Test set_retention: failed\n"
+    exit 1
+  fi
+
+  printf "Test delete_user: successful\n"
+  return 0 
+}
+
 # Delete stream
 delete_stream () {
   response=$(curl "${curl_std_opts[@]}" --request DELETE "$parseable_url"/api/v1/logstream/"$stream_name")
@@ -373,13 +494,19 @@ create_stream
 post_event_data
 list_log_streams
 get_streams_schema
-## sleep for a minute to ensure all data is pushed to backend
+# sleep for a minute to ensure all data is pushed to backend
 sleep 65
 query_log_stream
 set_alert
 get_alert
 set_retention
 get_retention
+put_user
+put_role
+set_std_opts $test_user "$test_password"
+check_api_access
+set_std_opts $username "$password"
+delete_user
 delete_stream
 cleanup
 printf "======= Smoke tests completed ======\n"
