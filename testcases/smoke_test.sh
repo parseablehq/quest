@@ -34,7 +34,7 @@ schema_body='{"fields":[{"name":"app_meta","data_type":"Utf8","nullable":true,"d
 retention_body='[{"description":"delete after 20 days","action":"delete","duration":"20d"}]'
 
 test_user="alice"
-role_editor='[{"role": "editor"}]'
+role_editor='[{"privilege": "editor"}]'
 
 set_std_opts() {
   local username=$1
@@ -70,13 +70,13 @@ stream_does_not_exists() {
 # Create stream
 create_stream () {
   response=$(curl "${curl_std_opts[@]}" --request PUT "$parseable_url"/api/v1/logstream/"$stream_name")
-  
+
   if [ $? -ne 0 ]; then
     printf "Failed to create log stream %s with exit code: %s\n" "$stream_name" "$?"
     printf "Test create_stream: failed\n"
     exit 1
   fi
-  
+
   http_code=$(tail -n1 <<< "$response")
   if [ "$http_code" -ne 200 ]; then
     printf "Failed to create log stream %s with http code: %s and response: %s\n" "$stream_name" "$http_code" "$content"
@@ -196,7 +196,7 @@ query_log_stream() {
   # Query last 10 minutes of data only
   end_time=$(date "+%Y-%m-%dT%H:%M:%S%:z")
   start_time=$(date --date="@$(($(date +%s)-600))" "+%Y-%m-%dT%H:%M:%S%:z")
-  
+
   response=$(curl "${curl_std_opts[@]}" --request POST "$parseable_url"/api/v1/query --data-raw '{
     "query": "select count(*) from '$stream_name'",
     "startTime": "'$start_time'",
@@ -268,7 +268,7 @@ get_alert () {
     printf "Test get_alert: failed\n"
     exit 1
   fi
-  
+
   content=$(sed '$ d' <<< "$response")
   if [ "$content" != "$alert_body" ]; then
     printf "Get alert response doesn't match with Alert config returned.\n"
@@ -324,7 +324,7 @@ get_retention () {
     printf "Test get_retention: failed\n"
     exit 1
   fi
-  
+
   content=$(sed '$ d' <<< "$response")
   if [ "$content" != "$retention_body" ]; then
     printf "Get retention response doesn't match with retention config returned.\n"
@@ -354,7 +354,7 @@ put_user () {
     exit 1
   fi
 
-  # set curl options to user incluse test user and the passphrase  
+  # set curl options to user incluse test user and the passphrase
   test_password=$(sed -n '1p' <<< "$response")
 
   printf "Test create_user: successful\n"
@@ -362,7 +362,7 @@ put_user () {
 }
 
 put_role() {
-  response=$(curl "${curl_std_opts[@]}" --request PUT "$parseable_url"/api/v1/user/"$test_user"/roles --data-raw "$role_editor")
+  response=$(curl "${curl_std_opts[@]}" --request PUT "$parseable_url"/api/v1/user/"$test_user"/role --data-raw "$role_editor")
   if [ $? -ne 0 ]; then
     printf "Failed put role for user %s with exit code: %s\n" "$test_user" "$?"
     printf "Test create_user: failed\n"
@@ -404,7 +404,7 @@ check_api_access() {
     printf "Test check_api_access: failed\n"
     exit 1
   fi
-  
+
   http_code=$(tail -n1 <<< "$response")
   if [ "$http_code" -ne 200 ]; then
     printf "Failed to get logstream api for new user with http code: %s and response: %s", "$http_code" "$response"
@@ -419,7 +419,7 @@ check_api_access() {
     printf "Test check_api_access: failed\n"
     exit 1
   fi
-  
+
   http_code=$(tail -n1 <<< "$response")
   if [ "$http_code" -ne 401 ]; then
     printf "Delete api did not return unauthorized (403) for user %s, http code: %s and response: %s", "$test_user", "$http_code" "$response"
@@ -447,7 +447,7 @@ delete_user() {
   fi
 
   printf "Test delete_user: successful\n"
-  return 0 
+  return 0
 }
 
 # Delete stream
