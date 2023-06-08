@@ -28,12 +28,11 @@ Positional arguments for the 'smoke' or 'load' mode:
 4. Password 
 ```
 
-
 Additional positional arguments for the 'load' mode
 ```
-5. (Optional) Number of different json formats to send to a stream
-6. (Optional) Schema count
-7. (Optional) Duration
+5. (Optional) Number of different json schemas to send to a stream
+6. (Optional) Number of virtual users (Refer K6 [documentation on VUs](https://k6.io/docs/get-started/running-k6/#adding-more-vus))
+7. (Optional) Duration of the test
 ```
 
 Example usage:

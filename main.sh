@@ -39,9 +39,16 @@ run_load_test () {
   return $?
 }
 
+run_validation_test () {
+  ./testcases/validate_test.sh "$endpoint" "$stream_name" "$username" "$password" "$schema_count" "$vus" "$duration"
+  return $?
+}
+
 case "$mode" in
    "smoke") run_smoke_test 
    ;;
    "load") run_load_test 
+   ;;
+   "validate") run_validation_test 
    ;;
 esac
