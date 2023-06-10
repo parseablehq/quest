@@ -83,7 +83,11 @@ delete_stream () {
 }
 
 run_k6() {
-  k6 run -e P_URL="$parseable_url" -e P_STREAM="$stream_name" -e P_USERNAME="$username" -e P_PASSWORD="$password" -e P_SCHEMA_COUNT="$count" "/tests/testcases/load.js" --vus="$vus" --duration="$duration"
+  printf "K6 script with 100 batched log events per HTTP Call"
+  k6 run -e P_URL="$parseable_url" -e P_STREAM="$stream_name" -e P_USERNAME="$username" -e P_PASSWORD="$password" -e P_SCHEMA_COUNT="$count" "/tests/testcases/load_batch_events.js" --vus="$vus" --duration="$duration"
+
+  printf "K6 script with 1 event per HTTP Call"
+  k6 run -e P_URL="$parseable_url" -e P_STREAM="$stream_name" -e P_USERNAME="$username" -e P_PASSWORD="$password" -e P_SCHEMA_COUNT="$count" "/tests/testcases/load_single_event.js" --vus="$vus" --duration="$duration"
 }
 
 printf "======= Starting load tests with k6 =======\n"
