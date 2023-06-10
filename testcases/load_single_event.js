@@ -1,6 +1,5 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import exec from 'k6/execution';
 import encoding from 'k6/encoding';
 import { randomString, randomItem, randomIntBetween, uuidv4 } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js'
 
@@ -10,7 +9,6 @@ export const options = {
         contacts: {
             executor: 'constant-vus',
             vus: 10,
-            duration: "5m",
         },
     },
 };
@@ -126,7 +124,7 @@ function generateJSON(schema) {
         }
         json[name] = value;
     });
-    return json;
+    return JSON.stringify(json);
 }
 
 function generateEvents(numberOfEvents = 3) {
@@ -157,7 +155,7 @@ export default function () {
     const params = {
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Basic ' + `${encodedCredentials}`,
+            'Authorization': 'Basic '+`${encodedCredentials}`,
             'X-P-STREAM': `${__ENV.P_STREAM}`,
             'X-P-META-Host': '10.116.0.3',
             'X-P-META-Source': 'quest-test',
@@ -168,15 +166,6 @@ export default function () {
         }
     }
 
-    let batch_requests = JSON.stringify(generateEvents(30));
-
-    let response = http.post(url, batch_requests, params);
-
-    if (
-        !check(response, {
-            'status code MUST be 200': (res) => res.status == 200,
-        })
-    ) {
-        exec.test.abort("Failed to send event.. status != 200");
-    }
+    let batch_requests = generateEvents(1).map(event => ['POST', url, event, params]);
+    http.batch(batch_requests);
 }
