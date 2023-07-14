@@ -1,6 +1,5 @@
 import http from 'k6/http';
 import { sleep } from 'k6';
-import { check } from 'k6';
 import exec from 'k6/execution';
 import encoding from 'k6/encoding';
 import { randomString, randomItem, randomIntBetween, uuidv4 } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js'
@@ -131,18 +130,15 @@ function generateJSON(schema) {
     return json;
 }
 
-function generateEvents() {
+function generateEvents(num = 5) {
     const events = [];
     let numberOfSchemas = schemas();
-
-    if (!numberOfSchemas) {
-        numberOfSchemas = 5
-    }
-
     let listOfSchema = generateOverlappingSchemas(numberOfSchemas);
 
-    // generate event of random schema from the list  
-    events.push(generateJSON(listOfSchema[Math.floor(Math.random() * listOfSchema.length)]))
+    // generate event of random schema from the list
+    for (let index = 0; index < num; index++) {
+        events.push(generateJSON(listOfSchema[Math.floor(Math.random() * listOfSchema.length)]));
+    }
 
     return events
 }
@@ -163,15 +159,20 @@ export default function () {
         }
     }
 
-    let batch_requests = JSON.stringify(generateEvents());
+    let events = generateEvents(5);
 
-    let response = http.post(url, batch_requests, params);
+    // send a request per event
+    let responses = http.batch(events.map(event => ['POST', url, JSON.stringify(event), params]))
 
-    if (
-        !check(response, {
-            'status code MUST be 200': (res) => res.status == 200,
-        })
-    ) {
-        exec.test.abort("Failed to send event.. status != 200. Last response was: " + response.error);
+    if (responses.some(res => res.status != 200)) {
+        exec.test.abort("Failed to send event.. status != 200");
+    }
+
+    // send all events batched
+    let batched_request = JSON.stringify(events);
+    let response = http.post(url, batched_request, params);
+
+    if (response.status != 200) {
+        exec.test.abort("Failed to send event.. status != 200");
     }
 }
