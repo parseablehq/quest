@@ -161,18 +161,18 @@ export default function () {
 
     let events = generateEvents(5);
 
-    // send a request per event
-    let responses = http.batch(events.map(event => ['POST', url, JSON.stringify(event), params]))
-
-    if (responses.some(res => res.status != 200)) {
-        exec.test.abort("Failed to send event.. status != 200");
-    }
-
     // send all events batched
     let batched_request = JSON.stringify(events);
     let response = http.post(url, batched_request, params);
 
     if (response.status != 200) {
+        exec.test.abort("Failed to send event.. status != 200");
+    }
+
+    // send a request per event
+    let responses = http.batch(events.map(event => ['POST', url, JSON.stringify(event), params]))
+
+    if (responses.some(res => res.status != 200)) {
         exec.test.abort("Failed to send event.. status != 200");
     }
 }
