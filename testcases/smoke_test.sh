@@ -22,7 +22,7 @@ username=$3
 password=$4
 
 log_events=50
-k6_log_events=6000
+k6_log_events=60000
 expectedCount=$((k6_log_events + log_events))
 
 input_file=$PWD/input.json
