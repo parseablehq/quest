@@ -35,6 +35,8 @@ retention_body='[{"description":"delete after 20 days","action":"delete","durati
 
 test_user="alice"
 role_editor='[{"privilege": "editor"}]'
+role_writer='[{"privilege": "writer", "resource": {"stream": "'"$stream_name"'"}}]'
+role_reader='[{"privilege": "reader", "resource": {"stream": "'"$stream_name"'"}}]'
 
 set_std_opts() {
   local username=$1
@@ -362,7 +364,8 @@ put_user () {
 }
 
 put_role() {
-  response=$(curl "${curl_std_opts[@]}" --request PUT "$parseable_url"/api/v1/user/"$test_user"/role --data-raw "$role_editor")
+  local role=$1
+  response=$(curl "${curl_std_opts[@]}" --request PUT "$parseable_url"/api/v1/user/"$test_user"/role --data-raw "$role")
   if [ $? -ne 0 ]; then
     printf "Failed put role for user %s with exit code: %s\n" "$test_user" "$?"
     printf "Test create_user: failed\n"
@@ -501,10 +504,22 @@ set_alert
 get_alert
 set_retention
 get_retention
+
 put_user
-put_role
+put_role "$role_editor"
 set_std_opts $test_user "$test_password"
 check_api_access
+
+set_std_opts $username "$password"
+put_role "$role_writer"
+set_std_opts $test_user "$test_password"
+check_api_access
+
+set_std_opts $username "$password"
+put_role "$role_reader"
+set_std_opts $test_user "$test_password"
+check_api_access
+
 set_std_opts $username "$password"
 delete_user
 delete_stream
