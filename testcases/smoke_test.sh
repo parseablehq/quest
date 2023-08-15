@@ -342,7 +342,7 @@ get_retention () {
 
 # create User
 put_user () {
-  response=$(curl "${curl_std_opts[@]}" --request PUT "$parseable_url"/api/v1/user/"$test_user")
+  response=$(curl "${curl_std_opts[@]}" --request POST "$parseable_url"/api/v1/user/"$test_user")
   if [ $? -ne 0 ]; then
     printf "Failed to create user %s with exit code: %s\n" "$test_user" "$?"
     printf "Test create_user: failed\n"
@@ -434,6 +434,25 @@ check_api_access() {
   return 0
 }
 
+reset_user_password() {
+  response=$(curl "${curl_std_opts[@]}" --request POST "$parseable_url"/api/v1/user/"$test_user"/generate-new-password)
+  if [ $? -ne 0 ]; then
+    printf "Failed reset password for user %s with exit code: %s\n" "$test_user" "$?"
+    printf "Test delete_user: failed\n"
+    exit 1
+  fi
+
+  http_code=$(tail -n1 <<< "$response")
+  if [ "$http_code" -ne 200 ]; then
+    printf "Failed reset password for user %s with http code: %s and response: %s\n" "$test_user" "$http_code" "$content"
+    printf "Test set_retention: failed\n"
+    exit 1
+  fi
+
+  printf "Test reset_user_password: successful\n"
+  return 0
+}
+
 delete_user() {
   response=$(curl "${curl_std_opts[@]}" --request DELETE "$parseable_url"/api/v1/user/"$test_user")
   if [ $? -ne 0 ]; then
@@ -521,6 +540,7 @@ set_std_opts $test_user "$test_password"
 check_api_access
 
 set_std_opts $username "$password"
+reset_user_password
 delete_user
 delete_stream
 cleanup
