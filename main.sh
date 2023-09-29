@@ -30,7 +30,7 @@ duration=$7
 stream_name=$(head /dev/urandom | tr -dc a-z | head -c10)
 
 run_smoke_test () {
-  ./testcases/smoke_test.sh "$endpoint" "$stream_name" "$username" "$password"
+  go test smoketest -timeout=10m -args -url="$endpoint" -stream="$stream_name" -user="$username" -pass="$password"
   return $?
 }
 
