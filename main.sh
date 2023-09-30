@@ -29,26 +29,9 @@ duration=$7
 
 stream_name=$(head /dev/urandom | tr -dc a-z | head -c10)
 
-run_smoke_test () {
-  go test smoketest -timeout=10m -args -url="$endpoint" -stream="$stream_name" -user="$username" -pass="$password"
+run () {
+  ./quest.test -test.v -mode="$mode" -url="$endpoint" -stream="$stream_name" -user="$username" -pass="$password" 
   return $?
 }
 
-run_load_test () {
-  ./testcases/load_test.sh "$endpoint" "$stream_name" "$username" "$password" "$schema_count" "$vus" "$duration"
-  return $?
-}
-
-run_validation_test () {
-  ./testcases/validate_test.sh "$endpoint" "$stream_name" "$username" "$password" "$schema_count" "$vus" "$duration"
-  return $?
-}
-
-case "$mode" in
-   "smoke") run_smoke_test 
-   ;;
-   "load") run_load_test 
-   ;;
-   "validate") run_validation_test 
-   ;;
-esac
+run
