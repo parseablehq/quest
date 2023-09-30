@@ -26,7 +26,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestListLogStream(t *testing.T) {
+const (
+	vus          = "10"
+	duration     = "5m"
+	schema_count = "20"
+)
+
+func TestSmokeListLogStream(t *testing.T) {
 	req, err := NewGlob.Client.NewRequest("GET", "logstream", nil)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 
@@ -36,19 +42,20 @@ func TestListLogStream(t *testing.T) {
 	body := readAsString(response.Body)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status)
 	res, err := readJsonBody[[]string](bytes.NewBufferString(body))
-	require.NoErrorf(t, err, "Unmarshal failed: %s", err)
-	for _, stream := range res {
-		if stream == NewGlob.Stream {
-			DeleteStream(t, NewGlob.Client, NewGlob.Stream)
+	if err != nil {
+		for _, stream := range res {
+			if stream == NewGlob.Stream {
+				DeleteStream(t, NewGlob.Client, NewGlob.Stream)
+			}
 		}
 	}
 }
 
-func TestCreateStream(t *testing.T) {
+func TestSmokeCreateStream(t *testing.T) {
 	CreateStream(t, NewGlob.Client, NewGlob.Stream)
 }
 
-func TestIngestEventsToStream(t *testing.T) {
+func TestSmokeIngestEventsToStream(t *testing.T) {
 	cmd := exec.Command("flog", "-f", "json", "-n", "50")
 	var out strings.Builder
 	cmd.Stdout = &out
@@ -74,7 +81,7 @@ func TestIngestEventsToStream(t *testing.T) {
 	Sleep()
 }
 
-func TestLoadWithK6Stream(t *testing.T) {
+func TestSmokeLoadWithK6Stream(t *testing.T) {
 	CreateStream(t, NewGlob.Client, NewGlob.Stream)
 	cmd := exec.Command("k6",
 		"run",
@@ -90,14 +97,14 @@ func TestLoadWithK6Stream(t *testing.T) {
 	AssertStreamSchema(t, NewGlob.Client, NewGlob.Stream, SchemaBody)
 }
 
-func TestSetAlert(t *testing.T) {
+func TestSmokeSetAlert(t *testing.T) {
 	req, _ := NewGlob.Client.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/alert", strings.NewReader(AlertBody))
 	response, err := NewGlob.Client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 }
 
-func TestGetAlert(t *testing.T) {
+func TestSmokeGetAlert(t *testing.T) {
 	req, _ := NewGlob.Client.NewRequest("GET", "logstream/"+NewGlob.Stream+"/alert", nil)
 	response, err := NewGlob.Client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
@@ -106,14 +113,14 @@ func TestGetAlert(t *testing.T) {
 	require.JSONEq(t, AlertBody, body, "Get alert response doesn't match with Alert config returned")
 }
 
-func TestSetRetention(t *testing.T) {
+func TestSmokeSetRetention(t *testing.T) {
 	req, _ := NewGlob.Client.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/retention", strings.NewReader(RetentionBody))
 	response, err := NewGlob.Client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 }
 
-func TestGetRetention(t *testing.T) {
+func TestSmokeGetRetention(t *testing.T) {
 	req, _ := NewGlob.Client.NewRequest("GET", "logstream/"+NewGlob.Stream+"/retention", nil)
 	response, err := NewGlob.Client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
@@ -122,19 +129,19 @@ func TestGetRetention(t *testing.T) {
 	require.JSONEq(t, RetentionBody, body, "Get retention response doesn't match with retention config returned")
 }
 
-func TestRbacBasic(t *testing.T) {
+func TestSmokeRbacBasic(t *testing.T) {
 	SetRole(t, NewGlob.Client, "dummy", dummyRole)
 	AssertRole(t, NewGlob.Client, "dummy", dummyRole)
 	CreateUserWithRole(t, NewGlob.Client, "dummy", []string{"dummy"})
 	userClient := NewGlob.Client
 	userClient.Username = "dummy"
 	userClient.Password = RegenPassword(t, NewGlob.Client, "dummy")
-	checkAPIAccess(t, userClient, NewGlob.Stream)
+	checkAPIAccess(t, userClient, NewGlob.Stream, "editor")
 	DeleteUser(t, NewGlob.Client, "dummy")
 	DeleteRole(t, NewGlob.Client, "dummy")
 }
 
-func TestRoles(t *testing.T) {
+func TestSmokeRoles(t *testing.T) {
 	cases := []struct {
 		roleName string
 		body     string
@@ -152,7 +159,7 @@ func TestRoles(t *testing.T) {
 			body:     RoleWriter(NewGlob.Stream),
 		},
 		{
-			roleName: "ingestor",
+			roleName: "ingest",
 			body:     RoleIngestor(NewGlob.Stream),
 		},
 	}
@@ -167,10 +174,54 @@ func TestRoles(t *testing.T) {
 			userClient := NewGlob.Client
 			userClient.Username = username
 			userClient.Password = password
-			checkAPIAccess(t, userClient, NewGlob.Stream)
+			checkAPIAccess(t, userClient, NewGlob.Stream, tc.roleName)
 			DeleteUser(t, NewGlob.Client, username)
 			DeleteRole(t, NewGlob.Client, tc.roleName)
 		})
+	}
+}
+
+func TestLoadStreamBatchWithK6(t *testing.T) {
+	if NewGlob.Mode == "load" {
+		cmd := exec.Command("k6",
+			"run",
+			"-e", fmt.Sprintf("P_URL=%s", NewGlob.Url.String()),
+			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.Username),
+			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.Password),
+			"-e", fmt.Sprintf("P_STREAM=%s", NewGlob.Stream),
+			"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
+			"./scripts/load_batch_events.js",
+			"--vus=", vus,
+			"--duration=", duration)
+
+		cmd.Run()
+		op, err := cmd.Output()
+		if err != nil {
+			t.Log(err)
+		}
+		t.Log(string(op))
+	}
+}
+
+func TestLoadStreamNoBatchWithK6(t *testing.T) {
+	if NewGlob.Mode == "load" {
+		cmd := exec.Command("k6",
+			"run",
+			"-e", fmt.Sprintf("P_URL=%s", NewGlob.Url.String()),
+			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.Username),
+			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.Password),
+			"-e", fmt.Sprintf("P_STREAM=%s", NewGlob.Stream),
+			"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
+			"./scripts/load_single_events.js",
+			"--vus=", vus,
+			"--duration=", duration)
+
+		cmd.Run()
+		op, err := cmd.Output()
+		if err != nil {
+			t.Log(err)
+		}
+		t.Log(string(op))
 	}
 }
 

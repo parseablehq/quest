@@ -147,22 +147,101 @@ func DeleteRole(t *testing.T, client HTTPClient, roleName string) {
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 }
 
-func checkAPIAccess(t *testing.T, client HTTPClient, stream string) {
-	// Check access to non-protected API
-	req, _ := client.NewRequest("GET", "liveness", nil)
+func PutSingleEvent(t *testing.T, client HTTPClient, stream string) {
+	payload := `{
+		"id": "id;objectId",
+		"maxRunDistance": "float;1;20;1",
+		"cpf": "cpf",
+		"cnpj": "cnpj",
+		"pretendSalary": "money",
+		"age": "int;20;80",
+		"gender": "gender",
+		"firstName": "firstName",
+		"lastName": "lastName",
+		"phone": "maskInt;+55 (83) 9####-####",
+		"address": "address",
+		"hairColor": "color"
+	}`
+	req, _ := client.NewRequest("POST", "logstream/"+stream, bytes.NewBufferString(payload))
 	response, err := client.Do(req)
+
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+}
 
-	// Check access to protected API with access
-	req, _ = client.NewRequest("GET", "logstream", nil)
-	response, err = client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+func checkAPIAccess(t *testing.T, client HTTPClient, stream string, role string) {
+	switch role {
+	case "editor":
+		// Check access to non-protected API
+		req, _ := client.NewRequest("GET", "liveness", nil)
+		response, err := client.Do(req)
+		require.NoErrorf(t, err, "Request failed: %s", err)
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 
-	// Attempt to call protected API without access
-	req, _ = client.NewRequest("DELETE", "logstream/"+stream, nil)
-	response, err = client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t, 403, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+		// Check access to protected API with access
+		req, _ = client.NewRequest("GET", "logstream", nil)
+		response, err = client.Do(req)
+		require.NoErrorf(t, err, "Request failed: %s", err)
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+
+		// Attempt to call protected API without access
+		req, _ = client.NewRequest("DELETE", "logstream/"+stream, nil)
+		response, err = client.Do(req)
+		require.NoErrorf(t, err, "Request failed: %s", err)
+		require.Equalf(t, 403, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+
+	case "writer":
+		// Check access to non-protected API
+		req, _ := client.NewRequest("GET", "liveness", nil)
+		response, err := client.Do(req)
+		require.NoErrorf(t, err, "Request failed: %s", err)
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+
+		// Check access to protected API with access
+		req, _ = client.NewRequest("GET", "logstream", nil)
+		response, err = client.Do(req)
+		require.NoErrorf(t, err, "Request failed: %s", err)
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+
+		// Attempt to call protected API without access
+		req, _ = client.NewRequest("DELETE", "logstream/"+stream, nil)
+		response, err = client.Do(req)
+		require.NoErrorf(t, err, "Request failed: %s", err)
+		require.Equalf(t, 403, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+
+	case "reader":
+		// Check access to non-protected API
+		req, _ := client.NewRequest("GET", "liveness", nil)
+		response, err := client.Do(req)
+		require.NoErrorf(t, err, "Request failed: %s", err)
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+
+		// Check access to protected API with access
+		req, _ = client.NewRequest("GET", "logstream", nil)
+		response, err = client.Do(req)
+		require.NoErrorf(t, err, "Request failed: %s", err)
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+
+		// Attempt to call protected API without access
+		req, _ = client.NewRequest("DELETE", "logstream/"+stream, nil)
+		response, err = client.Do(req)
+		require.NoErrorf(t, err, "Request failed: %s", err)
+		require.Equalf(t, 403, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+
+	case "ingest":
+		// Check access to non-protected API
+		req, _ := client.NewRequest("GET", "liveness", nil)
+		response, err := client.Do(req)
+		require.NoErrorf(t, err, "Request failed: %s", err)
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+
+		// Check access to protected API with access
+		PutSingleEvent(t, client, stream)
+
+		// Attempt to call protected API without access
+		req, _ = client.NewRequest("DELETE", "logstream/"+stream, nil)
+		response, err = client.Do(req)
+		require.NoErrorf(t, err, "Request failed: %s", err)
+		require.Equalf(t, 403, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+	}
 }
