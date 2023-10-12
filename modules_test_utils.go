@@ -40,6 +40,12 @@ const sample_module_config_per_stream = `
 }]
 `
 
+const sample_proxy_route_body = `
+{
+  "stream_name": "demo"
+}
+`
+
 func test_module_registration_flow(t *testing.T) error {
 
 	start_server()
@@ -71,6 +77,12 @@ func test_module_registration_flow(t *testing.T) error {
 	response, err = NewGlob.Client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	// require.Equalf(t, bytes.NewBufferString((sample_module_config_per_stream)), response.Body, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
+
+	println("Testing Proxy Route")
+	req, _ = NewGlob.Client.NewRequest("GET", "modules/"+module_name+"/anomaly", bytes.NewBufferString(sample_proxy_route_body))
+	response, err = NewGlob.Client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 
 	stop_server()
