@@ -54,6 +54,7 @@ func TestSmokeListLogStream(t *testing.T) {
 func TestSmokeCreateStream(t *testing.T) {
 	CreateStream(t, NewGlob.Client, NewGlob.Stream)
 }
+
 func TestSmokeModulesAPI(t *testing.T) {
 	println("Inside modules test API")
 	test_module_registration_flow(t)

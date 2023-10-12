@@ -31,18 +31,21 @@ const sampleModuleRegistrationJSON = `{
 
 func test_module_registration_flow(t *testing.T) error {
 	module_name := "random_module"
-	print("Module Registration flow for: " + module_name)
+	println("Module Registration flow for: " + module_name)
 
-	print("Testing Registering Module")
+	println("Testing Registering Module")
 	req, _ := NewGlob.Client.NewRequest("PUT", "modules/"+module_name, bytes.NewBufferString(sampleModuleRegistrationJSON))
 	response, err := NewGlob.Client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 
-	// fmt.Printf("Status Code: %d\n", response.StatusCode)
-	// fmt.Println("Status Message:", response.Status)
+	println("Getting list of modules:")
+	req, _ = NewGlob.Client.NewRequest("GET", "modules", bytes.NewBufferString("{}"))
+	response, err = NewGlob.Client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 
-	print("Testing DeRegistering Module")
+	println("Testing DeRegistering Module")
 	req, _ = NewGlob.Client.NewRequest("DELETE", "modules/"+module_name, bytes.NewBufferString("{}"))
 	response, err = NewGlob.Client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
