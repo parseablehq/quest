@@ -20,17 +20,21 @@ mode=$1
 endpoint=$2
 username=$3
 password=$4
-schema_count=$5
-: "${schema_count:=20}"
-vus=$6
-: "${vus:=10}"
-duration=$7
-: "${duration:="5m"}"
+
+schema_count="${5:-20}"
+vus="${6:-10}"
+duration="${7:-5m}"
+
+# todo: accept all these as named argument instead: eg: -pan_user admin
+panorama_address="${8:-http:0.0.0.0:5000}"
+panorama_admin_username="${9:-pano_admin}"
+panorama_admin_password="${10:-pano_admin}"
 
 stream_name=$(head /dev/urandom | tr -dc a-z | head -c10)
 
 run () {
-  ./quest.test -test.v -mode="$mode" -url="$endpoint" -stream="$stream_name" -user="$username" -pass="$password" 
+  ./quest.test -test.v -mode="$mode" -url="$endpoint" -stream="$stream_name" -user="$username" -pass="$password" \
+    -panorama-address="$panorama_address" -panorama-admin-username="$panorama_admin_username" -panorama-admin-password="$panorama_admin_password"
   return $?
 }
 

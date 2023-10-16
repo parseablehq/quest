@@ -1,33 +1,53 @@
+// Copyright (c) 2023 Cloudnatively Services Pvt Ltd
+//
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package main
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-const sampleModuleRegistrationJSON = `{
-  "version": "v0.0.2",
-  "username": "admin",
-  "password": "admin",
-  "url": "http://0.0.0.0:5000",
-  "streamConfig": {
-    "path": "/api/v1/logstream/{stream_name}/config"
-  },
-  "routes": [
-    {
-      "serverPath": "anomaly",
-      "modulePath": "/api/v1/anomaly",
-      "method": "GET"
-    },
-    {
-      "serverPath": "models",
-      "modulePath": "/api/v1/models",
-      "method": "GET"
-    }
-  ]
-}`
+// Function to generate the JSON string
+func generateModuleRegistrationJSON(username, password, address string) string {
+	return fmt.Sprintf(`{
+	  "version": "v0.0.2",
+	  "username": "%s",
+	  "password": "%s",
+	  "url":  "%s",
+	  "streamConfig": {
+	    "path": "/api/v1/logstream/{stream_name}/config"
+	  },
+	  "routes": [
+	    {
+	      "serverPath": "anomaly",
+	      "modulePath": "/api/v1/anomaly",
+	      "method": "GET"
+	    },
+	    {
+	      "serverPath": "models",
+	      "modulePath": "/api/v1/models",
+	      "method": "GET"
+	    }
+	  ]
+	}`, username, password, address)
+}
 
 const sample_module_config_per_stream = `
 [{
@@ -48,7 +68,8 @@ const sample_proxy_route_body = `
 
 func test_module_registration_flow(t *testing.T) error {
 
-	start_server()
+	sampleModuleRegistrationJSON := generateModuleRegistrationJSON(NewGlob.Username, NewGlob.PanoramaBaseAddress, NewGlob.PanoramaBaseAddress)
+
 	module_name := "random_module"
 	stream_name := "demo"
 
@@ -84,8 +105,6 @@ func test_module_registration_flow(t *testing.T) error {
 	response, err = NewGlob.Client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
-
-	stop_server()
 
 	println("Testing DeRegistering Module")
 	req, _ = NewGlob.Client.NewRequest("DELETE", "modules/"+module_name, bytes.NewBufferString("{}"))
