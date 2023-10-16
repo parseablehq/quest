@@ -17,6 +17,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -46,6 +47,7 @@ func (client *HTTPClient) baseAPIURL(path string) (x string) {
 
 func (client *HTTPClient) NewRequest(method string, path string, body io.Reader) (req *http.Request, err error) {
 	req, err = http.NewRequest(method, client.baseAPIURL(path), body)
+	fmt.Println("Url = ", req.URL)
 	if err != nil {
 		return
 	}

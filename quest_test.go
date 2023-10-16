@@ -225,6 +225,10 @@ func TestLoadStreamNoBatchWithK6(t *testing.T) {
 	}
 }
 
+func TestSmokeModulesAPI(t *testing.T) {
+	test_module_registration_flow(t)
+}
+
 func TestDeleteStream(t *testing.T) {
 	DeleteStream(t, NewGlob.Client, NewGlob.Stream)
 }
