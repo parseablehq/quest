@@ -55,10 +55,6 @@ func TestSmokeCreateStream(t *testing.T) {
 	CreateStream(t, NewGlob.Client, NewGlob.Stream)
 }
 
-func TestSmokeModulesAPI(t *testing.T) {
-	test_module_registration_flow(t)
-}
-
 func TestSmokeIngestEventsToStream(t *testing.T) {
 	cmd := exec.Command("flog", "-f", "json", "-n", "50")
 	var out strings.Builder
@@ -227,6 +223,10 @@ func TestLoadStreamNoBatchWithK6(t *testing.T) {
 		}
 		t.Log(string(op))
 	}
+}
+
+func TestSmokeModulesAPI(t *testing.T) {
+	test_module_registration_flow(t)
 }
 
 func TestDeleteStream(t *testing.T) {
