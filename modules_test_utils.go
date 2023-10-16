@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Function to generate the JSON string
 func generateModuleRegistrationJSON(username, password, address string) string {
 	return fmt.Sprintf(`{
 	  "version": "v0.0.2",
