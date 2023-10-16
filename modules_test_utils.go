@@ -36,7 +36,7 @@ const sample_module_config_per_stream = `
 
 func test_module_registration_flow(t *testing.T) error {
 
-	module_name := "panorama" // Remove the "const" keyword
+	module_name := "panorama"
 	stream_name := NewGlob.Stream
 
 	sample_proxy_route_body := `
