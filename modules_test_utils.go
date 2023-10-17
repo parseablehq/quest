@@ -53,7 +53,7 @@ func test_module_registration_flow(t *testing.T) error {
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 
-	println("Updating config")
+	println("Updating config for stream: ", stream_name)
 	req, _ = NewGlob.Client.NewRequest("PUT", "modules/"+module_name+"/config/"+stream_name, bytes.NewBufferString(sample_module_config_per_stream))
 	response, err = NewGlob.Client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)

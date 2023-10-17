@@ -81,6 +81,10 @@ func TestSmokeIngestEventsToStream(t *testing.T) {
 	Sleep()
 }
 
+func TestSmokeModulesAPI(t *testing.T) {
+	test_module_registration_flow(t)
+}
+
 func TestSmokeLoadWithK6Stream(t *testing.T) {
 	CreateStream(t, NewGlob.Client, NewGlob.Stream)
 	cmd := exec.Command("k6",
@@ -223,10 +227,6 @@ func TestLoadStreamNoBatchWithK6(t *testing.T) {
 		}
 		t.Log(string(op))
 	}
-}
-
-func TestSmokeModulesAPI(t *testing.T) {
-	test_module_registration_flow(t)
 }
 
 func TestDeleteStream(t *testing.T) {
