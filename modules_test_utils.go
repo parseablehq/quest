@@ -38,7 +38,6 @@ func test_module_registration_flow(t *testing.T) error {
 
 	module_name := "panorama"
 	stream_name := NewGlob.Stream
-
 	sample_proxy_route_body := `
 {
   "stream_name": "` + stream_name + `"
@@ -63,7 +62,6 @@ func test_module_registration_flow(t *testing.T) error {
 	req, _ = NewGlob.Client.NewRequest("GET", "modules/"+module_name+"/config/"+stream_name, bytes.NewBufferString("{}"))
 	response, err = NewGlob.Client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
-	// require.Equalf(t, bytes.NewBufferString((sample_module_config_per_stream)), response.Body, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 
 	println("Testing Proxy Route")

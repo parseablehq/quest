@@ -82,7 +82,9 @@ func TestSmokeIngestEventsToStream(t *testing.T) {
 }
 
 func TestSmokeModulesAPI(t *testing.T) {
+	CreateStream(t, NewGlob.Client, NewGlob.Stream)
 	test_module_registration_flow(t)
+	DeleteStream(t, NewGlob.Client, NewGlob.Stream)
 }
 
 func TestSmokeLoadWithK6Stream(t *testing.T) {
