@@ -27,12 +27,15 @@ func main() {
 }
 
 type Glob struct {
-	Url      url.URL
-	Username string
-	Password string
-	Stream   string
-	Client   HTTPClient
-	Mode     string
+	Url                   url.URL
+	Username              string
+	Password              string
+	Stream                string
+	Client                HTTPClient
+	Mode                  string
+	PanoramaBaseAddress   string
+	PanoramaAdminUsername string
+	PanoramaAdminPassword string
 }
 
 var NewGlob = func() Glob {
@@ -43,11 +46,19 @@ var NewGlob = func() Glob {
 	var stream string
 	var mode string
 
+	var panoramaAddress string
+	var panoramaAdminUsername string
+	var panoramaAdminPassword string
+
 	flag.StringVar(&targetUrl, "url", "http://localhost:8000", "Specify url. Default is root")
 	flag.StringVar(&username, "user", "admin", "Specify username. Default is admin")
 	flag.StringVar(&password, "pass", "admin", "Specify pass. Default is admin")
 	flag.StringVar(&stream, "stream", "app", "Specify stream. Default is app")
 	flag.StringVar(&mode, "mode", "smoke", "Specify mode. Default is smoke")
+	flag.StringVar(&panoramaAddress, "panorama-address", "http://localhost:5000", "Specify panorama address. Default is http://localhost:5000")
+
+	flag.StringVar(&panoramaAdminUsername, "panorama-admin-username", "pano_admin", "Specify module connection username. Default is pano_admin")
+	flag.StringVar(&panoramaAdminPassword, "panorama-admin-password", "pano_admin", "Specify Module connection password. Default is pano_admin")
 
 	flag.Parse()
 
@@ -59,11 +70,14 @@ var NewGlob = func() Glob {
 	client := DefaultClient(*parsedTargetUrl, username, password)
 
 	return Glob{
-		Url:      *parsedTargetUrl,
-		Username: username,
-		Password: password,
-		Stream:   stream,
-		Client:   client,
-		Mode:     mode,
+		Url:                   *parsedTargetUrl,
+		Username:              username,
+		Password:              password,
+		Stream:                stream,
+		Client:                client,
+		Mode:                  mode,
+		PanoramaBaseAddress:   panoramaAddress,
+		PanoramaAdminUsername: panoramaAdminUsername,
+		PanoramaAdminPassword: panoramaAdminPassword,
 	}
 }()
