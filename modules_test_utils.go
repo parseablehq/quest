@@ -43,7 +43,6 @@ func test_module_registration_flow(t *testing.T) error {
   "stream_name": "` + stream_name + `"
 }
 `
-
 	println("Module Registration flow for: " + module_name)
 
 	println("Getting list of modules:")
