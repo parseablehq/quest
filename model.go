@@ -369,5 +369,5 @@ func RoleReader(stream string) string {
 }
 
 func RoleIngester(stream string) string {
-	return fmt.Sprintf(`[{"privilege": "ingest", "resource": {"stream": "%s"}}]`, stream)
+	return fmt.Sprintf(`[{"privilege": "ingester", "resource": {"stream": "%s"}}]`, stream)
 }

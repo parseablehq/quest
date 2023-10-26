@@ -294,7 +294,7 @@ func checkAPIAccess(t *testing.T, client HTTPClient, stream string, role string)
 		require.NoErrorf(t, err, "Request failed: %s", err)
 		require.Equalf(t, 403, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 
-	case "ingest":
+	case "ingester":
 		// Check access to non-protected API
 		req, _ := client.NewRequest("GET", "liveness", nil)
 		response, err := client.Do(req)
