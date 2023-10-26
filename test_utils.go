@@ -209,8 +209,8 @@ func PutSingleEventExpectErr(t *testing.T, client HTTPClient, stream string) {
 	req, _ := client.NewRequest("POST", "logstream/"+stream, bytes.NewBufferString(payload))
 	response, err := client.Do(req)
 
-	require.Errorf(t, err, "Request passed: %s when expected to fail", err)
-	require.NotEqualf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+	require.NoErrorf(t, err, "Request failed when expected to pass: %s", err)
+	require.Equalf(t, 403, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 }
 
 func PutSingleEvent(t *testing.T, client HTTPClient, stream string) {
