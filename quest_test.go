@@ -129,8 +129,45 @@ func TestSmokeGetRetention(t *testing.T) {
 	require.JSONEq(t, RetentionBody, body, "Get retention response doesn't match with retention config returned")
 }
 
+// This test calls all the User API endpoints
+// in a sequence to check if they work as expected.
+func TestSmoke_AllUsersAPI(t *testing.T) {
+	CreateRole(t, NewGlob.Client, "dummyrole", dummyRole)
+	AssertRole(t, NewGlob.Client, "dummyrole", dummyRole)
+
+	CreateUser(t, NewGlob.Client, "dummyuser")
+	AssignRolesToUser(t, NewGlob.Client, "dummyuser", []string{"dummyrole"})
+	AssertUserRole(t, NewGlob.Client, "dummyuser", "dummyrole", dummyRole)
+	RegenPassword(t, NewGlob.Client, "dummyuser")
+	DeleteUser(t, NewGlob.Client, "dummyuser")
+
+	CreateUserWithRole(t, NewGlob.Client, "dummyuser", []string{"dummyrole"})
+	AssertUserRole(t, NewGlob.Client, "dummyuser", "dummyrole", dummyRole)
+	RegenPassword(t, NewGlob.Client, "dummyuser")
+	DeleteUser(t, NewGlob.Client, "dummyuser")
+
+	DeleteRole(t, NewGlob.Client, "dummyrole")
+}
+
+// This test checks that a new user doesn't get any role by default
+// even if a default role is set.
+func TestSmoke_NewUserNoRole(t *testing.T) {
+	CreateRole(t, NewGlob.Client, "dummyrole", dummyRole)
+	SetDefaultRole(t, NewGlob.Client, "dummyrole")
+	AssertDefaultRole(t, NewGlob.Client, "dummyrole")
+
+	password := CreateUser(t, NewGlob.Client, "dummyuser")
+	userClient := NewGlob.Client
+	userClient.Username = "dummyuser"
+	userClient.Password = password
+
+	PutSingleEventExpectErr(t, userClient, NewGlob.Stream)
+
+	DeleteUser(t, NewGlob.Client, "dummyuser")
+}
+
 func TestSmokeRbacBasic(t *testing.T) {
-	SetRole(t, NewGlob.Client, "dummy", dummyRole)
+	CreateRole(t, NewGlob.Client, "dummy", dummyRole)
 	AssertRole(t, NewGlob.Client, "dummy", dummyRole)
 	CreateUserWithRole(t, NewGlob.Client, "dummy", []string{"dummy"})
 	userClient := NewGlob.Client
@@ -160,13 +197,13 @@ func TestSmokeRoles(t *testing.T) {
 		},
 		{
 			roleName: "ingest",
-			body:     RoleIngestor(NewGlob.Stream),
+			body:     RoleIngester(NewGlob.Stream),
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.roleName, func(t *testing.T) {
-			SetRole(t, NewGlob.Client, tc.roleName, tc.body)
+			CreateRole(t, NewGlob.Client, tc.roleName, tc.body)
 			AssertRole(t, NewGlob.Client, tc.roleName, tc.body)
 			username := tc.roleName + "_user"
 			password := CreateUserWithRole(t, NewGlob.Client, username, []string{tc.roleName})

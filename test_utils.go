@@ -90,7 +90,7 @@ func AssertStreamSchema(t *testing.T, client HTTPClient, stream string, schema s
 	require.JSONEq(t, schema, body, "Get schema response doesn't match with expected schema")
 }
 
-func SetRole(t *testing.T, client HTTPClient, name string, role string) {
+func CreateRole(t *testing.T, client HTTPClient, name string, role string) {
 	req, _ := client.NewRequest("PUT", "role/"+name, strings.NewReader(role))
 	response, err := client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
@@ -103,7 +103,16 @@ func AssertRole(t *testing.T, client HTTPClient, name string, role string) {
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	body := readAsString(response.Body)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
-	require.JSONEq(t, role, body, "Get retention response doesn't match with retention config returned")
+	require.JSONEq(t, role, body, "Get role response doesn't match with retention config returned")
+}
+
+func CreateUser(t *testing.T, client HTTPClient, user string) string {
+	req, _ := client.NewRequest("POST", "user/"+user, nil)
+	response, err := client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	body := readAsString(response.Body)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
+	return body
 }
 
 func CreateUserWithRole(t *testing.T, client HTTPClient, user string, roles []string) string {
@@ -114,6 +123,24 @@ func CreateUserWithRole(t *testing.T, client HTTPClient, user string, roles []st
 	body := readAsString(response.Body)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
 	return body
+}
+
+func AssignRolesToUser(t *testing.T, client HTTPClient, user string, roles []string) {
+	payload, _ := json.Marshal(roles)
+	req, _ := client.NewRequest("PUT", "user/"+user+"/role", bytes.NewBuffer(payload))
+	response, err := client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+}
+
+func AssertUserRole(t *testing.T, client HTTPClient, user string, roleName, roleBody string) {
+	req, _ := client.NewRequest("GET", "user/"+user+"/role", nil)
+	response, err := client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	userRoleBody := readAsString(response.Body)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, userRoleBody)
+	expectedRoleBody := fmt.Sprintf(`{"%s":%s}`, roleName, roleBody)
+	require.JSONEq(t, userRoleBody, expectedRoleBody, "Get user role response doesn't match with expected role")
 }
 
 func RegenPassword(t *testing.T, client HTTPClient, user string) string {
@@ -145,6 +172,45 @@ func DeleteRole(t *testing.T, client HTTPClient, roleName string) {
 	response, err := client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+}
+
+func SetDefaultRole(t *testing.T, client HTTPClient, roleName string) {
+	payload, _ := json.Marshal(roleName)
+	req, _ := client.NewRequest("PUT", "role/default", bytes.NewBuffer(payload))
+	response, err := client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+}
+
+func AssertDefaultRole(t *testing.T, client HTTPClient, roleName string) {
+	req, _ := client.NewRequest("GET", "role/default", nil)
+	response, err := client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	body := readAsString(response.Body)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
+	require.Equalf(t, roleName, body, "Get default role response doesn't match with expected role")
+}
+
+func PutSingleEventExpectErr(t *testing.T, client HTTPClient, stream string) {
+	payload := `{
+		"id": "id;objectId",
+		"maxRunDistance": "float;1;20;1",
+		"cpf": "cpf",
+		"cnpj": "cnpj",
+		"pretendSalary": "money",
+		"age": "int;20;80",
+		"gender": "gender",
+		"firstName": "firstName",
+		"lastName": "lastName",
+		"phone": "maskInt;+55 (83) 9####-####",
+		"address": "address",
+		"hairColor": "color"
+	}`
+	req, _ := client.NewRequest("POST", "logstream/"+stream, bytes.NewBufferString(payload))
+	response, err := client.Do(req)
+
+	require.Errorf(t, err, "Request passed: %s when expected to fail", err)
+	require.NotEqualf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 }
 
 func PutSingleEvent(t *testing.T, client HTTPClient, stream string) {
