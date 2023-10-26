@@ -154,7 +154,7 @@ func TestSmoke_AllUsersAPI(t *testing.T) {
 func TestSmoke_NewUserNoRole(t *testing.T) {
 	CreateRole(t, NewGlob.Client, "dummyrole", dummyRole)
 	SetDefaultRole(t, NewGlob.Client, "dummyrole")
-	AssertDefaultRole(t, NewGlob.Client, "dummyrole")
+	AssertDefaultRole(t, NewGlob.Client, "\"dummyrole\"")
 
 	password := CreateUser(t, NewGlob.Client, "dummyuser")
 	userClient := NewGlob.Client
