@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -61,6 +62,27 @@ func DeleteStream(t *testing.T, client HTTPClient, stream string) {
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
 }
 
+func RunFlog(t *testing.T, stream string) {
+	cmd := exec.Command("flog", "-f", "json", "-n", "50")
+	var out strings.Builder
+	cmd.Stdout = &out
+	err := cmd.Run()
+	require.NoErrorf(t, err, "Failed to run flog: %s", err)
+
+	for _, obj := range strings.SplitN(out.String(), "\n", 50) {
+		var payload strings.Builder
+		payload.WriteRune('[')
+		payload.WriteString(obj)
+		payload.WriteRune(']')
+
+		req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(payload.String()))
+		req.Header.Add("X-P-Stream", stream)
+		response, err := NewGlob.Client.Do(req)
+		require.NoErrorf(t, err, "Request failed: %s", err)
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
+	}
+}
+
 func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count uint64) {
 	// Query last 10 minutes of data only
 	endTime := time.Now().Format(time.RFC3339)
@@ -68,6 +90,26 @@ func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count u
 
 	query := map[string]interface{}{
 		"query":     "select count(*) as count from " + stream,
+		"startTime": startTime,
+		"endTime":   endTime,
+	}
+	queryJSON, _ := json.Marshal(query)
+	req, _ := client.NewRequest("POST", "query", bytes.NewBuffer(queryJSON))
+	response, err := client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	body := readAsString(response.Body)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
+	expected := fmt.Sprintf(`[{"count":%d}]`, count)
+	require.Equalf(t, expected, body, "Query count incorrect; Expected %s, Actual %s", expected, body)
+}
+
+func QueryTwoLogStreamCount(t *testing.T, client HTTPClient, stream1 string, stream2 string, count uint64) {
+	// Query last 10 minutes of data only
+	endTime := time.Now().Format(time.RFC3339)
+	startTime := time.Now().Add(-10 * time.Minute).Format(time.RFC3339)
+
+	query := map[string]interface{}{
+		"query":     fmt.Sprintf("select sum(c) as count from (select count(*) as c from %s union all select count(*) as c from %s)", stream1, stream2),
 		"startTime": startTime,
 		"endTime":   endTime,
 	}
