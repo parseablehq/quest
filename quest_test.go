@@ -56,29 +56,10 @@ func TestSmokeCreateStream(t *testing.T) {
 }
 
 func TestSmokeIngestEventsToStream(t *testing.T) {
-	cmd := exec.Command("flog", "-f", "json", "-n", "50")
-	var out strings.Builder
-	cmd.Stdout = &out
-	err := cmd.Run()
-	require.NoErrorf(t, err, "Failed to run flog: %s", err)
-
-	for _, obj := range strings.SplitN(out.String(), "\n", 50) {
-		var payload strings.Builder
-		payload.WriteRune('[')
-		payload.WriteString(obj)
-		payload.WriteRune(']')
-
-		req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(payload.String()))
-		req.Header.Add("X-P-Stream", NewGlob.Stream)
-		response, err := NewGlob.Client.Do(req)
-		require.NoErrorf(t, err, "Request failed: %s", err)
-		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
-	}
-
+	RunFlog(t, NewGlob.Stream)
 	QueryLogStreamCount(t, NewGlob.Client, NewGlob.Stream, 50)
 	AssertStreamSchema(t, NewGlob.Client, NewGlob.Stream, FlogJsonSchema)
 	DeleteStream(t, NewGlob.Client, NewGlob.Stream)
-	Sleep()
 }
 
 func TestSmokeLoadWithK6Stream(t *testing.T) {
@@ -95,6 +76,16 @@ func TestSmokeLoadWithK6Stream(t *testing.T) {
 	cmd.Output()
 	QueryLogStreamCount(t, NewGlob.Client, NewGlob.Stream, 60000)
 	AssertStreamSchema(t, NewGlob.Client, NewGlob.Stream, SchemaBody)
+}
+
+func TestSmokeQueryTwoStreams(t *testing.T) {
+	stream1 := NewGlob.Stream + "1"
+	stream2 := NewGlob.Stream + "2"
+	RunFlog(t, stream1)
+	RunFlog(t, stream2)
+	QueryTwoLogStreamCount(t, NewGlob.Client, stream1, stream2, 100)
+	DeleteStream(t, NewGlob.Client, stream1)
+	DeleteStream(t, NewGlob.Client, stream2)
 }
 
 func TestSmokeSetAlert(t *testing.T) {
