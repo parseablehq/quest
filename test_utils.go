@@ -85,8 +85,8 @@ func RunFlog(t *testing.T, stream string) {
 
 func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count uint64) {
 	// Query last 10 minutes of data only
-	endTime := time.Now().Format(time.RFC3339)
-	startTime := time.Now().Add(-10 * time.Minute).Format(time.RFC3339)
+	endTime := time.Now().Format(time.RFC3339Nano)
+	startTime := time.Now().Add(-10 * time.Minute).Format(time.RFC3339Nano)
 
 	query := map[string]interface{}{
 		"query":     "select count(*) as count from " + stream,
@@ -105,8 +105,8 @@ func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count u
 
 func QueryTwoLogStreamCount(t *testing.T, client HTTPClient, stream1 string, stream2 string, count uint64) {
 	// Query last 10 minutes of data only
-	endTime := time.Now().Format(time.RFC3339)
-	startTime := time.Now().Add(-10 * time.Minute).Format(time.RFC3339)
+	endTime := time.Now().Format(time.RFC3339Nano)
+	startTime := time.Now().Add(-10 * time.Minute).Format(time.RFC3339Nano)
 
 	query := map[string]interface{}{
 		"query":     fmt.Sprintf("select sum(c) as count from (select count(*) as c from %s union all select count(*) as c from %s)", stream1, stream2),
