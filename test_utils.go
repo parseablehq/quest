@@ -85,7 +85,7 @@ func RunFlog(t *testing.T, stream string) {
 
 func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count uint64) {
 	// Query last 10 minutes of data only
-	endTime := time.Now().Format(time.RFC3339Nano)
+	endTime := time.Now().Add(time.Second).Format(time.RFC3339Nano)
 	startTime := time.Now().Add(-10 * time.Minute).Format(time.RFC3339Nano)
 
 	query := map[string]interface{}{
@@ -105,7 +105,7 @@ func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count u
 
 func QueryTwoLogStreamCount(t *testing.T, client HTTPClient, stream1 string, stream2 string, count uint64) {
 	// Query last 10 minutes of data only
-	endTime := time.Now().Format(time.RFC3339Nano)
+	endTime := time.Now().Add(time.Second).Format(time.RFC3339Nano)
 	startTime := time.Now().Add(-10 * time.Minute).Format(time.RFC3339Nano)
 
 	query := map[string]interface{}{
