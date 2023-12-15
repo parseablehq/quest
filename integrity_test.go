@@ -1,3 +1,19 @@
+// Copyright (c) 2023 Cloudnatively Services Pvt Ltd
+//
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package main
 
 import (
@@ -98,7 +114,7 @@ func TestIntegrity(t *testing.T) {
 	// Download the parquet file from MinIO.
 
 	// FIXME: Timing can go wrong and we may fail to get the object from MinIO.
-	path := getPath(time.Now(), stream)
+	path := listPath(time.Now(), stream)
 	minioConfig := NewGlob.MinIoConfig
 	parquetFile := "object.parquet"
 
@@ -134,15 +150,13 @@ func ingestFlogs(t *testing.T, flogs []Flog, stream string) {
 		readAsString(response.Body))
 }
 
-func getPath(now time.Time, stream string) string {
+func listPath(now time.Time, stream string) string {
 	year, month, day := now.Date()
-	hostname, _ := os.Hostname()
-	path := fmt.Sprintf("%s/date=%d-%d-%d/hour=%d/minute=%d/%s.data.parquet",
+	path := fmt.Sprintf("%s/date=%d-%d-%d/hour=%d/minute=%d/",
 		stream,
 		year, month, day,
 		now.Hour(),
 		now.Minute(),
-		hostname,
 	) // NOTE: This logic should be in sync with Parseable's.
 	return path
 }
@@ -154,7 +168,7 @@ func downloadParquetFromMinio(t *testing.T, path string, config MinIoConfig, dow
 	}
 
 	fmt.Printf("Getting the object at %s in %s...\n", path, config.Bucket)
-
+	s3Client.ListObjects(config.Bucket, "", true, nil)
 	parquetObj, err := s3Client.GetObject(config.Bucket, path, minio.GetObjectOptions{})
 	if err != nil {
 		t.Fatal("can't get object", err)
