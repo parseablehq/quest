@@ -62,22 +62,6 @@ func TestSmokeIngestEventsToStream(t *testing.T) {
 	DeleteStream(t, NewGlob.Client, NewGlob.Stream)
 }
 
-func TestSmokeLoadWithK6Stream(t *testing.T) {
-	CreateStream(t, NewGlob.Client, NewGlob.Stream)
-	cmd := exec.Command("k6",
-		"run",
-		"-e", fmt.Sprintf("P_URL=%s", NewGlob.Url.String()),
-		"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.Username),
-		"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.Password),
-		"-e", fmt.Sprintf("P_STREAM=%s", NewGlob.Stream),
-		"./scripts/smoke.js")
-
-	cmd.Run()
-	cmd.Output()
-	QueryLogStreamCount(t, NewGlob.Client, NewGlob.Stream, 60000)
-	AssertStreamSchema(t, NewGlob.Client, NewGlob.Stream, SchemaBody)
-}
-
 func TestSmokeQueryTwoStreams(t *testing.T) {
 	stream1 := NewGlob.Stream + "1"
 	stream2 := NewGlob.Stream + "2"
@@ -106,6 +90,22 @@ func TestSmokeRunQueries(t *testing.T) {
 	AssertQueryOK(t, NewGlob.Client, `SELECT DATE_TRUNC('minute', p_timestamp) as minute, COUNT(*) FROM %s GROUP BY minute`, NewGlob.Stream)
 
 	DeleteStream(t, NewGlob.Client, NewGlob.Stream)
+}
+
+func TestSmokeLoadWithK6Stream(t *testing.T) {
+	CreateStream(t, NewGlob.Client, NewGlob.Stream)
+	cmd := exec.Command("k6",
+		"run",
+		"-e", fmt.Sprintf("P_URL=%s", NewGlob.Url.String()),
+		"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.Username),
+		"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.Password),
+		"-e", fmt.Sprintf("P_STREAM=%s", NewGlob.Stream),
+		"./scripts/smoke.js")
+
+	cmd.Run()
+	cmd.Output()
+	QueryLogStreamCount(t, NewGlob.Client, NewGlob.Stream, 60000)
+	AssertStreamSchema(t, NewGlob.Client, NewGlob.Stream, SchemaBody)
 }
 
 func TestSmokeSetAlert(t *testing.T) {
