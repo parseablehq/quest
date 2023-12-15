@@ -33,6 +33,23 @@ const (
 	sleepDuration = 2 * time.Second
 )
 
+func flogStreamFields() []string {
+	return []string{
+		"p_timestamp",
+		"p_tags",
+		"p_metadata",
+		"host",
+		"'user-identifier'",
+		"datetime",
+		"method",
+		"request",
+		"protocol",
+		"status",
+		"bytes",
+		"referer",
+	}
+}
+
 func readAsString(body io.Reader) string {
 	r, _ := io.ReadAll(body)
 	return string(r)
@@ -121,6 +138,31 @@ func QueryTwoLogStreamCount(t *testing.T, client HTTPClient, stream1 string, str
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
 	expected := fmt.Sprintf(`[{"count":%d}]`, count)
 	require.Equalf(t, expected, body, "Query count incorrect; Expected %s, Actual %s", expected, body)
+}
+
+func AssertQueryOK(t *testing.T, client HTTPClient, query string, args ...any) {
+	// Query last 10 minutes of data only
+	endTime := time.Now().Add(time.Second).Format(time.RFC3339Nano)
+	startTime := time.Now().Add(-10 * time.Minute).Format(time.RFC3339Nano)
+
+	var finalQuery string
+	if len(args) == 0 {
+		finalQuery = query
+	} else {
+		finalQuery = fmt.Sprintf(query, args...)
+	}
+
+	queryJSON, _ := json.Marshal(map[string]interface{}{
+		"query":     finalQuery,
+		"startTime": startTime,
+		"endTime":   endTime,
+	})
+
+	req, _ := client.NewRequest("POST", "query", bytes.NewBuffer(queryJSON))
+	response, err := client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	body := readAsString(response.Body)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
 }
 
 func AssertStreamSchema(t *testing.T, client HTTPClient, stream string, schema string) {
