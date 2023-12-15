@@ -88,6 +88,26 @@ func TestSmokeQueryTwoStreams(t *testing.T) {
 	DeleteStream(t, NewGlob.Client, stream2)
 }
 
+func TestSmokeRunQueries(t *testing.T) {
+	RunFlog(t, NewGlob.Stream)
+	// test count
+	QueryLogStreamCount(t, NewGlob.Client, NewGlob.Stream, 50)
+	// test yeild all values
+	AssertQueryOK(t, NewGlob.Client, "SELECT * FROM %s", NewGlob.Stream)
+	AssertQueryOK(t, NewGlob.Client, "SELECT * FROM %s OFFSET 25 LIMIT 25", NewGlob.Stream)
+	// test fetch single column
+	for _, item := range flogStreamFields() {
+		AssertQueryOK(t, NewGlob.Client, "SELECT %s FROM %s", item, NewGlob.Stream)
+	}
+	// test basic filter
+	AssertQueryOK(t, NewGlob.Client, "SELECT * FROM %s WHERE method = 'POST'", NewGlob.Stream)
+	// test group by
+	AssertQueryOK(t, NewGlob.Client, "SELECT method, COUNT(*) FROM %s GROUP BY method", NewGlob.Stream)
+	AssertQueryOK(t, NewGlob.Client, `SELECT DATE_TRUNC('minute', p_timestamp) as minute, COUNT(*) FROM %s GROUP BY minute`, NewGlob.Stream)
+
+	DeleteStream(t, NewGlob.Client, NewGlob.Stream)
+}
+
 func TestSmokeSetAlert(t *testing.T) {
 	req, _ := NewGlob.Client.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/alert", strings.NewReader(AlertBody))
 	response, err := NewGlob.Client.Do(req)
