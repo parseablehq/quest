@@ -118,8 +118,8 @@ func TestIntegrity(t *testing.T) {
 		time.Sleep(parseableSyncWait)
 	}
 
-	downloadParquetFiles := downloadParquetFiles(NewGlob.Stream, NewGlob.MinIoConfig)
-	actualFlogs := loadFlogsFromParquetFiles(downloadParquetFiles)
+	parquetFiles := downloadParquetFiles(NewGlob.Stream, NewGlob.MinIoConfig)
+	actualFlogs := loadFlogsFromParquetFiles(parquetFiles)
 
 	rowCount := len(actualFlogs)
 
