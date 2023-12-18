@@ -22,8 +22,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -76,18 +81,161 @@ func (flog *ParquetFlog) Deref() Flog {
 
 // - Send logs to Parseable
 // - Wait for sync
-// - Download parquet from the store created by Parseable for the minute
+// - Download parquet files from the store created by Parseable for the minute
 // - Compare the sent logs with the ones loaded from the downloaded parquet
 func TestIntegrity(t *testing.T) {
-	// Load the logs we want to send to Parseable from the file.
+	iterations := 2
+	flogsPerIteration := 100
 
-	// NOTE: We can generate logs on the fly by running the `flog` command.
-	flogsFile, err := os.Open("data/flogs.txt")
-	if err != nil {
-		t.Fatalf("couldn't open fake logs file (%s)", err)
+	parseableSyncWait := 1 * time.Minute // NOTE: This needs to be in sync with Parseable's.
+
+	// - Generate log files using `flog`
+	// - Load them into `Flog` structs
+	// - Ingest them into Parseable
+
+	flogs := make([]Flog, 0, iterations*flogsPerIteration)
+
+	for i := 0; i < iterations; i++ {
+		flogsFile := fmt.Sprintf("%d.log", i)
+
+		err := exec.Command("flog",
+			"--number", strconv.Itoa(flogsPerIteration),
+			"--format", "json",
+			"--type", "log",
+			"--overwrite",
+			"--output", flogsFile).Run()
+		if err != nil {
+			slog.Error("couldn't generate flogs", "error", err)
+		}
+
+		loadedFlogs := loadFlogsFromFile(flogsFile)
+
+		go ingestFlogs(loadedFlogs, NewGlob.Stream)
+
+		flogs = append(flogs, loadedFlogs...)
+
+		// Wait for the events to be sync'd.
+		time.Sleep(parseableSyncWait)
 	}
 
-	lines := bufio.NewScanner(flogsFile)
+	downloadParquetFiles := downloadParquetFiles(NewGlob.Stream, NewGlob.MinIoConfig)
+	actualFlogs := loadFlogsFromParquetFiles(downloadParquetFiles)
+
+	rowCount := len(actualFlogs)
+
+	for i, expectedFlog := range flogs {
+		// The rows in parquet written by Parseable will be latest first, so we
+		// compare the first of ours with the last of what we got from Parseable's
+		// store.
+		actualFlog := actualFlogs[rowCount-i-1].Deref()
+		require.Equal(t, actualFlog, expectedFlog)
+	}
+}
+
+func ingestFlogs(flogs []Flog, stream string) {
+	payload, _ := json.Marshal(flogs)
+
+	req, _ := NewGlob.Client.NewRequest(http.MethodPost, "ingest", bytes.NewBuffer(payload))
+	req.Header.Add("X-P-Stream", stream)
+	_, err := NewGlob.Client.Do(req)
+
+	if err != nil {
+		slog.Error("couldn't ingest logs", "error", err)
+	}
+}
+
+func downloadParquetFiles(stream string, config MinIoConfig) []string {
+	client, err := minio.New(config.Url, config.User, config.Pass, false)
+	if err != nil {
+		slog.Error("couldn't create MinIO client", "error", err)
+	}
+
+	downloadedFileNames := make([]string, 0, 10)
+
+	for objectInfo := range client.ListObjectsV2(config.Bucket, stream, true, nil) {
+		key := objectInfo.Key
+
+		if !isParquetFile(key) {
+			continue
+		}
+
+		parquetObject, err := client.GetObject("integrity-test", key, minio.GetObjectOptions{})
+		if err != nil {
+			slog.Error("couldn't get object", "key", key, "error", err)
+		}
+
+		// Write the MinIO Object we got, into `downloadPath`.
+
+		fileName := strings.ReplaceAll(key, "/", ".")
+		f, _ := os.Create(fileName)
+		_, err = io.Copy(f, parquetObject)
+
+		if err != nil {
+			slog.Error("couldn't copy", "fileName", fileName, "error", err)
+		}
+
+		downloadedFileNames = append(downloadedFileNames, fileName)
+
+		f.Close()
+	}
+
+	// Reverse the filenames, because we want latest files first.
+	for i, j := 0, len(downloadedFileNames)-1; i < j; i, j = i+1, j-1 {
+		downloadedFileNames[i], downloadedFileNames[j] = downloadedFileNames[j], downloadedFileNames[i]
+	}
+
+	slog.Info("downloaded files", "paths", downloadedFileNames)
+
+	return downloadedFileNames
+}
+
+func loadFlogsFromParquetFile(path string) []ParquetFlog {
+	fr, err := local.NewLocalFileReader(path)
+	slog.Info("reading parquet file", "path", path)
+	if err != nil {
+		slog.Error("can't create local file reader", "error", err)
+	}
+
+	defer fr.Close()
+
+	pr, err := reader.NewParquetReader(fr, new(ParquetFlog), 4)
+	if err != nil {
+		slog.Error("can't create parquet reader", "error", err)
+	}
+
+	defer pr.ReadStop()
+
+	flogs := make([]ParquetFlog, pr.GetNumRows())
+
+	if err = pr.Read(&flogs); err != nil {
+		slog.Error("can't read parquet file", "error", err)
+	}
+
+	return flogs
+}
+
+func loadFlogsFromParquetFiles(parquetFiles []string) []ParquetFlog {
+	slog.Info("loading flogs from parquet files", "paths", parquetFiles, "count", len(parquetFiles))
+	flogs := make([]ParquetFlog, 0, len(parquetFiles)*10)
+
+	for _, parquetFile := range parquetFiles {
+		flogs = append(flogs, loadFlogsFromParquetFile(parquetFile)...)
+	}
+
+	return flogs
+}
+
+func isParquetFile(path string) bool {
+	return filepath.Ext(path) == ".parquet"
+}
+
+func loadFlogsFromFile(path string) []Flog {
+	f, err := os.Open(path)
+	if err != nil {
+		slog.Error("couldn't open file", "path", path, "error", err)
+	}
+
+	lines := bufio.NewScanner(f)
 	lines.Split(bufio.ScanLines)
 
 	flogs := make([]Flog, 0, 10)
@@ -98,114 +246,10 @@ func TestIntegrity(t *testing.T) {
 
 		err := json.Unmarshal(line, &flog)
 		if err != nil {
-			t.Fatalf("Invalid flog line: %s", err)
+			slog.Error("couldn't unmarshal line", "line", string(line), "error", err)
 		}
 
 		flogs = append(flogs, flog)
-	}
-
-	stream := "integrity"
-
-	go ingestFlogs(t, flogs, stream)
-
-	// Wait for the events to be synched.
-	time.Sleep(1 * time.Minute) // FIXME
-
-	// Download the parquet file from MinIO.
-
-	// FIXME: Timing can go wrong and we may fail to get the object from MinIO.
-	path := listPath(time.Now(), stream)
-	minioConfig := NewGlob.MinIoConfig
-	parquetFile := "object.parquet"
-
-	path = "integrity/date=2023-12-14/hour=17/minute=36/S1LT-6168.data.parquet"
-	downloadParquetFromMinio(t, path, minioConfig, parquetFile)
-
-	// Load logs from the downloaded file and compare with the ones we ingested.
-
-	actualFlogs := loadFlogsFromParquetFile(t, parquetFile)
-	rowCount := len(actualFlogs)
-
-	for i, expectedFlog := range flogs {
-		// The rows in parquet written by Parseable will be latest first, so we
-		// compare the first of ours, with the last of what we got from Parseable's
-		// store.
-		actualFlog := actualFlogs[rowCount-i-1].Deref()
-		require.Equal(t, actualFlog, expectedFlog)
-	}
-}
-
-func ingestFlogs(t *testing.T, flogs []Flog, stream string) {
-	payload, _ := json.Marshal(flogs)
-
-	req, _ := NewGlob.Client.NewRequest(http.MethodPost, "ingest", bytes.NewBuffer(payload))
-	req.Header.Add("X-P-Stream", stream)
-	response, err := NewGlob.Client.Do(req)
-
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t,
-		200, response.StatusCode,
-		"Server returned http code: %s resp %s",
-		response.Status,
-		readAsString(response.Body))
-}
-
-func listPath(now time.Time, stream string) string {
-	year, month, day := now.Date()
-	path := fmt.Sprintf("%s/date=%d-%d-%d/hour=%d/minute=%d/",
-		stream,
-		year, month, day,
-		now.Hour(),
-		now.Minute(),
-	) // NOTE: This logic should be in sync with Parseable's.
-	return path
-}
-
-func downloadParquetFromMinio(t *testing.T, path string, config MinIoConfig, downloadPath string) {
-	s3Client, err := minio.New(config.Url, config.User, config.Pass, false)
-	if err != nil {
-		t.Fatal("can't create minio client", err)
-	}
-
-	fmt.Printf("Getting the object at %s in %s...\n", path, config.Bucket)
-	s3Client.ListObjects(config.Bucket, "", true, nil)
-	parquetObj, err := s3Client.GetObject(config.Bucket, path, minio.GetObjectOptions{})
-	if err != nil {
-		t.Fatal("can't get object", err)
-	}
-
-	// Write the MinIO Object we got, into `downloadPath`.
-
-	f, _ := os.Create(downloadPath)
-	_, err = io.Copy(f, parquetObj)
-
-	if err != nil {
-		t.Fatal("couldn't copy:", err)
-	}
-
-	f.Close()
-}
-
-func loadFlogsFromParquetFile(t *testing.T, parquetFile string) []ParquetFlog {
-	fr, err := local.NewLocalFileReader(parquetFile)
-	if err != nil {
-		t.Fatal("unable to read the parquet file", err)
-	}
-
-	defer fr.Close()
-
-	pr, err := reader.NewParquetReader(fr, new(ParquetFlog), 4)
-	if err != nil {
-		t.Fatal("can't create parquet reader", err)
-	}
-
-	defer pr.ReadStop()
-
-	rowCount := int(pr.GetNumRows())
-	flogs := make([]ParquetFlog, rowCount)
-
-	if err = pr.Read(&flogs); err != nil {
-		t.Fatal("parquet read error", err)
 	}
 
 	return flogs
