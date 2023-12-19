@@ -33,6 +33,14 @@ type Glob struct {
 	Stream   string
 	Client   HTTPClient
 	Mode     string
+	MinIoConfig
+}
+
+type MinIoConfig struct {
+	Url    string
+	User   string
+	Pass   string
+	Bucket string
 }
 
 var NewGlob = func() Glob {
@@ -42,12 +50,22 @@ var NewGlob = func() Glob {
 	var password string
 	var stream string
 	var mode string
+	// XXX
+	var minioUrl string
+	var minioUser string
+	var minioPass string
+	var minioBucket string
 
 	flag.StringVar(&targetUrl, "url", "http://localhost:8000", "Specify url. Default is root")
 	flag.StringVar(&username, "user", "admin", "Specify username. Default is admin")
 	flag.StringVar(&password, "pass", "admin", "Specify pass. Default is admin")
 	flag.StringVar(&stream, "stream", "app", "Specify stream. Default is app")
 	flag.StringVar(&mode, "mode", "smoke", "Specify mode. Default is smoke")
+
+	flag.StringVar(&minioUrl, "minio-url", "localhost:9000", "Specify MinIO URL. Default is localhost:9000")
+	flag.StringVar(&minioUser, "minio-user", "minioadmin", "Specify MinIO User. Default is `minioadmin`")
+	flag.StringVar(&minioPass, "minio-pass", "minioadmin", "Specify MinIO Password. Default is `minioadmin`")
+	flag.StringVar(&minioBucket, "minio-bucket", "parseable", "Specify the name of MinIO Bucket. Default is `integrity-test`")
 
 	flag.Parse()
 
@@ -65,5 +83,11 @@ var NewGlob = func() Glob {
 		Stream:   stream,
 		Client:   client,
 		Mode:     mode,
+		MinIoConfig: MinIoConfig{
+			Url:    minioUrl,
+			User:   minioUser,
+			Pass:   minioPass,
+			Bucket: minioBucket,
+		},
 	}
 }()

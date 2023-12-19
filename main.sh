@@ -26,11 +26,19 @@ vus=$6
 : "${vus:=10}"
 duration=$7
 : "${duration:="5m"}"
+minio_url=$8
+: "${minio_url:="localhost:9000"}"
+minio_access_key=$9
+: "${minio_access_key:="minioadmin"}"
+minio_secret_key=${10}
+: "${minio_secret_key:="minioadmin"}"
+minio_bucket=${11}
+: "${minio_bucket:="parseable"}"
 
 stream_name=$(head /dev/urandom | tr -dc a-z | head -c10)
 
 run () {
-  ./quest.test -test.v -mode="$mode" -url="$endpoint" -stream="$stream_name" -user="$username" -pass="$password" 
+  ./quest.test -test.v -mode="$mode" -url="$endpoint" -stream="$stream_name" -user="$username" -pass="$password" -minio-url="$minio_url" -minio-user="$minio_access_key" -minio-pass="$minio_secret_key" -minio-bucket="$minio_bucket"
   return $?
 }
 
