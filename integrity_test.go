@@ -110,12 +110,20 @@ func TestIntegrity(t *testing.T) {
 
 		loadedFlogs := loadFlogsFromFile(flogsFile)
 
-		go ingestFlogs(loadedFlogs, NewGlob.Stream)
+		err = ingestFlogs(loadedFlogs, NewGlob.Stream)
+		if err != nil {
+			t.Fatal("error ingesting flogs", err)
+		}
 
 		flogs = append(flogs, loadedFlogs...)
 
+		slog.Info("ingested logs, sleeping...",
+			"iteration", i+1,
+			"log_count", len(loadedFlogs))
+
 		// Wait for the events to be sync'd.
 		time.Sleep(parseableSyncWait)
+		// XXX: We don't need to sleep for the entire minute, just until the next minute boundary.
 	}
 
 	parquetFiles := downloadParquetFiles(NewGlob.Stream, NewGlob.MinIoConfig)
@@ -134,16 +142,21 @@ func TestIntegrity(t *testing.T) {
 	DeleteStream(t, NewGlob.Client, NewGlob.Stream)
 }
 
-func ingestFlogs(flogs []Flog, stream string) {
+func ingestFlogs(flogs []Flog, stream string) error {
 	payload, _ := json.Marshal(flogs)
 
 	req, _ := NewGlob.Client.NewRequest(http.MethodPost, "ingest", bytes.NewBuffer(payload))
 	req.Header.Add("X-P-Stream", stream)
-	_, err := NewGlob.Client.Do(req)
-
+	response, err := NewGlob.Client.Do(req)
 	if err != nil {
-		slog.Error("couldn't ingest logs", "error", err)
+		return err
 	}
+
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("couldn't ingest logs, status code = %d", response.StatusCode)
+	}
+
+	return nil
 }
 
 func downloadParquetFiles(stream string, config MinIoConfig) []string {
@@ -154,10 +167,15 @@ func downloadParquetFiles(stream string, config MinIoConfig) []string {
 
 	downloadedFileNames := make([]string, 0, 10)
 
+	slog.Info("downloading parquet files from MinIO",
+		"bucket", config.Bucket,
+		"stream", stream)
+
 	for objectInfo := range client.ListObjectsV2(config.Bucket, stream, true, nil) {
 		key := objectInfo.Key
 
 		if !isParquetFile(key) {
+			slog.Info("skipping path, not a parquet file", "key", key)
 			continue
 		}
 
