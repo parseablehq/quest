@@ -130,6 +130,8 @@ func TestIntegrity(t *testing.T) {
 		actualFlog := actualFlogs[rowCount-i-1].Deref()
 		require.Equal(t, actualFlog, expectedFlog)
 	}
+
+	DeleteStream(t, NewGlob.Client, NewGlob.Stream)
 }
 
 func ingestFlogs(flogs []Flog, stream string) {
