@@ -65,7 +65,7 @@ var NewGlob = func() Glob {
 	flag.StringVar(&minioUrl, "minio-url", "localhost:9000", "Specify MinIO URL. Default is localhost:9000")
 	flag.StringVar(&minioUser, "minio-user", "minioadmin", "Specify MinIO User. Default is `minioadmin`")
 	flag.StringVar(&minioPass, "minio-pass", "minioadmin", "Specify MinIO Password. Default is `minioadmin`")
-	flag.StringVar(&minioBucket, "minio-bucket", "integrity-test", "Specify the name of MinIO Bucket. Default is `integrity-test`")
+	flag.StringVar(&minioBucket, "minio-bucket", "parseable", "Specify the name of MinIO Bucket. Default is `integrity-test`")
 
 	flag.Parse()
 
