@@ -159,7 +159,7 @@ func downloadParquetFiles(stream string, config MinIoConfig) []string {
 			continue
 		}
 
-		parquetObject, err := client.GetObject("integrity-test", key, minio.GetObjectOptions{})
+		parquetObject, err := client.GetObject(config.Bucket, key, minio.GetObjectOptions{})
 		if err != nil {
 			slog.Error("couldn't get object", "key", key, "error", err)
 		}
