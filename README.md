@@ -28,6 +28,12 @@ Positional arguments for the 'smoke' or 'load' mode:
 3. Username
 4. Password 
 8. MinIO URL
+
+**Example**
+
+`localhost:9000`, note that it shouldn't be prefixed with `http://`.
+Also, `https` isn't supported yet.
+
 9. MinIO Access Key (User)
 10. MinIO Secret Key (Password)
 11. MinIO Bucket (name of the bucket Parseable is configured to ingest into)
