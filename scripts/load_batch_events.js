@@ -24,6 +24,10 @@ function schemas() {
     return Number(__ENV.P_SCHEMA_COUNT)
 }
 
+function events_per_call() {
+    return Number(__ENV.P_EVENTS_COUNT)
+}
+
 const common_schema = [
     { "name": "source_time", "gen": current_time, "arg": null },
     { "name": "level", "gen": randomItem, "arg": ["info", "warn", "error"] },
@@ -168,7 +172,13 @@ export default function () {
         }
     }
 
-    let batch_requests = JSON.stringify(generateEvents(10));
+    let events = events_per_call();
+
+    if (!events) {
+        events = 10
+    }
+
+    let batch_requests = JSON.stringify(generateEvents(events));
     let response = http.post(url, batch_requests, params);
 
     if (
