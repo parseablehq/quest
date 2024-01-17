@@ -168,7 +168,7 @@ export default function () {
         }
     }
 
-    let batch_requests = JSON.stringify(generateEvents(10));
+    let batch_requests = JSON.stringify(generateEvents(1000));
     let response = http.post(url, batch_requests, params);
 
     if (
