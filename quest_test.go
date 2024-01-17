@@ -30,6 +30,7 @@ const (
 	vus          = "10"
 	duration     = "5m"
 	schema_count = "20"
+	events_count = "10"
 )
 
 func TestSmokeListLogStream(t *testing.T) {
@@ -238,6 +239,7 @@ func TestLoadStreamBatchWithK6(t *testing.T) {
 			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.Password),
 			"-e", fmt.Sprintf("P_STREAM=%s", NewGlob.Stream),
 			"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
+			"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", schema_count),
 			"./scripts/load_batch_events.js",
 			"--vus=", vus,
 			"--duration=", duration)
