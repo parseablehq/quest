@@ -72,6 +72,16 @@ func CreateStream(t *testing.T, client HTTPClient, stream string) {
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
 }
 
+func CreateStreamWithHeader(t *testing.T, client HTTPClient, stream string, header map[string]string) {
+	req, _ := client.NewRequest("PUT", "logstream/"+stream, nil)
+	for k, v := range header {
+		req.Header.Add(k, v)
+	}
+	response, err := client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
+}
+
 func DeleteStream(t *testing.T, client HTTPClient, stream string) {
 	req, _ := client.NewRequest("DELETE", "logstream/"+stream, nil)
 	response, err := client.Do(req)

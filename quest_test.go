@@ -253,6 +253,34 @@ func TestLoadStreamBatchWithK6(t *testing.T) {
 	}
 }
 
+func TestLoadHistoricalStreamBatchWithK6(t *testing.T) {
+	if NewGlob.Mode == "load" {
+		historicalStream := NewGlob.Stream + "historical"
+		timeHeader := map[string]string{"X-P-Time-Partition": "source_time"}
+		CreateStreamWithHeader(t, NewGlob.Client, historicalStream, timeHeader)
+
+		cmd := exec.Command("k6",
+			"run",
+			"-e", fmt.Sprintf("P_URL=%s", NewGlob.Url.String()),
+			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.Username),
+			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.Password),
+			"-e", fmt.Sprintf("P_STREAM=%s", historicalStream),
+			"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
+			"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", schema_count),
+			"./scripts/load_historical_batch_events.js",
+			"--vus=", vus,
+			"--duration=", duration)
+
+		cmd.Run()
+		op, err := cmd.Output()
+		if err != nil {
+			t.Log(err)
+		}
+		t.Log(string(op))
+		DeleteStream(t, NewGlob.Client, historicalStream)
+	}
+}
+
 func TestLoadStreamNoBatchWithK6(t *testing.T) {
 	if NewGlob.Mode == "load" {
 		cmd := exec.Command("k6",
