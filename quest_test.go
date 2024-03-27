@@ -63,6 +63,30 @@ func TestSmokeIngestEventsToStream(t *testing.T) {
 	DeleteStream(t, NewGlob.Client, NewGlob.Stream)
 }
 
+func TestTimePartition_TimeStampMismatch(t *testing.T) {
+	historicalStream := NewGlob.Stream + "historical"
+	timeHeader := map[string]string{"X-P-Time-Partition": "source_time"}
+	CreateStreamWithHeader(t, NewGlob.Client, historicalStream, timeHeader)
+	IngestOneEventWithTimePartition_TimeStampMismatch(t, historicalStream)
+	DeleteStream(t, NewGlob.Client, historicalStream)
+}
+
+func TestTimePartition_NoTimePartitionInLog(t *testing.T) {
+	historicalStream := NewGlob.Stream + "historical"
+	timeHeader := map[string]string{"X-P-Time-Partition": "source_time"}
+	CreateStreamWithHeader(t, NewGlob.Client, historicalStream, timeHeader)
+	IngestOneEventWithTimePartition_NoTimePartitionInLog(t, historicalStream)
+	DeleteStream(t, NewGlob.Client, historicalStream)
+}
+
+func TestTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t *testing.T) {
+	historicalStream := NewGlob.Stream + "historical"
+	timeHeader := map[string]string{"X-P-Time-Partition": "source_time"}
+	CreateStreamWithHeader(t, NewGlob.Client, historicalStream, timeHeader)
+	IngestOneEventWithTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t, historicalStream)
+	DeleteStream(t, NewGlob.Client, historicalStream)
+}
+
 func TestSmokeQueryTwoStreams(t *testing.T) {
 	stream1 := NewGlob.Stream + "1"
 	stream2 := NewGlob.Stream + "2"
@@ -250,6 +274,34 @@ func TestLoadStreamBatchWithK6(t *testing.T) {
 			t.Log(err)
 		}
 		t.Log(string(op))
+	}
+}
+
+func TestLoadHistoricalStreamBatchWithK6(t *testing.T) {
+	if NewGlob.Mode == "load" {
+		historicalStream := NewGlob.Stream + "historical"
+		timeHeader := map[string]string{"X-P-Time-Partition": "source_time"}
+		CreateStreamWithHeader(t, NewGlob.Client, historicalStream, timeHeader)
+
+		cmd := exec.Command("k6",
+			"run",
+			"-e", fmt.Sprintf("P_URL=%s", NewGlob.Url.String()),
+			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.Username),
+			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.Password),
+			"-e", fmt.Sprintf("P_STREAM=%s", historicalStream),
+			"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
+			"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", schema_count),
+			"./scripts/load_historical_batch_events.js",
+			"--vus=", vus,
+			"--duration=", duration)
+
+		cmd.Run()
+		op, err := cmd.Output()
+		if err != nil {
+			t.Log(err)
+		}
+		t.Log(string(op))
+		DeleteStream(t, NewGlob.Client, historicalStream)
 	}
 }
 
