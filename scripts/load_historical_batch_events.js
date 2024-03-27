@@ -16,12 +16,8 @@ export const options = {
 };
 
 function current_time() {
-    const startDate = new Date('2022-01-01');
-    const endDate = new Date('2022-01-31');
-    const timeDiff = endDate.getTime() - startDate.getTime();
-    const randomTime = Math.random() * timeDiff;
-    const randomDate = new Date(startDate.getTime() + randomTime);
-    return(randomDate.toISOString());
+    let event = new Date();
+    return event.toUTCString();
 }
 
 function schemas() {

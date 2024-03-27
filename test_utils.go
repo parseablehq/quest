@@ -110,6 +110,33 @@ func RunFlog(t *testing.T, stream string) {
 	}
 }
 
+func IngestOneEventWithTimePartition_TimeStampMismatch(t *testing.T, stream string) {
+	var test_payload string = `{"source_time":"2024-03-26T18:08:00.434Z","level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingester 8020"}`
+	req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
+	req.Header.Add("X-P-Stream", stream)
+	response, err := NewGlob.Client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	require.Equalf(t, 400, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
+}
+
+func IngestOneEventWithTimePartition_NoTimePartitionInLog(t *testing.T, stream string) {
+	var test_payload string = `{"level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingester 8020"}`
+	req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
+	req.Header.Add("X-P-Stream", stream)
+	response, err := NewGlob.Client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	require.Equalf(t, 400, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
+}
+
+func IngestOneEventWithTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t *testing.T, stream string) {
+	var test_payload string = `{"source_time":"2024-03-26", "level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingester 8020"}`
+	req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
+	req.Header.Add("X-P-Stream", stream)
+	response, err := NewGlob.Client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	require.Equalf(t, 400, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
+}
+
 func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count uint64) {
 	// Query last 10 minutes of data only
 	endTime := time.Now().Add(time.Second).Format(time.RFC3339Nano)

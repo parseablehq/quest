@@ -63,6 +63,30 @@ func TestSmokeIngestEventsToStream(t *testing.T) {
 	DeleteStream(t, NewGlob.Client, NewGlob.Stream)
 }
 
+func TestTimePartition_TimeStampMismatch(t *testing.T) {
+	historicalStream := NewGlob.Stream + "historical"
+	timeHeader := map[string]string{"X-P-Time-Partition": "source_time"}
+	CreateStreamWithHeader(t, NewGlob.Client, historicalStream, timeHeader)
+	IngestOneEventWithTimePartition_TimeStampMismatch(t, historicalStream)
+	DeleteStream(t, NewGlob.Client, historicalStream)
+}
+
+func TestTimePartition_NoTimePartitionInLog(t *testing.T) {
+	historicalStream := NewGlob.Stream + "historical"
+	timeHeader := map[string]string{"X-P-Time-Partition": "source_time"}
+	CreateStreamWithHeader(t, NewGlob.Client, historicalStream, timeHeader)
+	IngestOneEventWithTimePartition_NoTimePartitionInLog(t, historicalStream)
+	DeleteStream(t, NewGlob.Client, historicalStream)
+}
+
+func TestTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t *testing.T) {
+	historicalStream := NewGlob.Stream + "historical"
+	timeHeader := map[string]string{"X-P-Time-Partition": "source_time"}
+	CreateStreamWithHeader(t, NewGlob.Client, historicalStream, timeHeader)
+	IngestOneEventWithTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t, historicalStream)
+	DeleteStream(t, NewGlob.Client, historicalStream)
+}
+
 func TestSmokeQueryTwoStreams(t *testing.T) {
 	stream1 := NewGlob.Stream + "1"
 	stream2 := NewGlob.Stream + "2"
