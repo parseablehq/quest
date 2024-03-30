@@ -82,6 +82,96 @@ func CreateStreamWithHeader(t *testing.T, client HTTPClient, stream string, head
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
 }
 
+func CreateStreamWithSchemaBody(t *testing.T, client HTTPClient, stream string, header map[string]string) {
+	var schema_payload string = `{
+		"fields":[
+		 {
+			 "name": "source_time",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "level",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "message",
+			 "data_type": "string"
+		 },
+         {
+			 "name": "version",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "user_id",
+			 "data_type": "int"
+		 },
+		 {
+			 "name": "device_id",
+			 "data_type": "int"
+		 },
+		 {
+			 "name": "session_id",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "os",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "host",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "uuid",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "location",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "timezone",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "user_agent",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "runtime",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "request_body",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "status_code",
+			 "data_type": "int"
+		 },
+		 {
+			 "name": "response_time",
+			 "data_type": "int"
+		 },
+		 {
+			 "name": "process_id",
+			 "data_type": "int"
+		 },
+		 {
+			 "name": "app_meta",
+			 "data_type": "string"
+		 }
+	 ]
+	 }`
+	req, _ := client.NewRequest("PUT", "logstream/"+stream, bytes.NewBufferString(schema_payload))
+	for k, v := range header {
+		req.Header.Add(k, v)
+	}
+	response, err := client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
+}
+
 func DeleteStream(t *testing.T, client HTTPClient, stream string) {
 	req, _ := client.NewRequest("DELETE", "logstream/"+stream, nil)
 	response, err := client.Do(req)
@@ -135,6 +225,24 @@ func IngestOneEventWithTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t
 	response, err := NewGlob.Client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 400, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
+}
+
+func IngestOneEventForStaticSchemaStream_NewFieldInLog(t *testing.T, stream string) {
+	var test_payload string = `{"source_time":"2024-03-26", "level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingester 8020"}`
+	req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
+	req.Header.Add("X-P-Stream", stream)
+	response, err := NewGlob.Client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	require.Equalf(t, 400, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
+}
+
+func IngestOneEventForStaticSchemaStream_SameFieldsInLog(t *testing.T, stream string) {
+	var test_payload string = `{"source_time":"2024-03-26", "level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc"}`
+	req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
+	req.Header.Add("X-P-Stream", stream)
+	response, err := NewGlob.Client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 }
 
 func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count uint64) {
