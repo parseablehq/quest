@@ -87,9 +87,17 @@ func TestTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t *testing.T) {
 	DeleteStream(t, NewGlob.Client, historicalStream)
 }
 
+func TestLoadStream_StaticSchema_EventWithSameFields(t *testing.T) {
+	staticSchemaStream := NewGlob.Stream + "staticschema"
+	staticSchemaFlagHeader := map[string]string{"X-P-Static-Schema-Flag": "true"}
+	CreateStreamWithSchemaBody(t, NewGlob.Client, staticSchemaStream, staticSchemaFlagHeader)
+	IngestOneEventForStaticSchemaStream_SameFieldsInLog(t, staticSchemaStream)
+	DeleteStream(t, NewGlob.Client, staticSchemaStream)
+}
+
 func TestLoadStreamBatchWithK6_StaticSchema(t *testing.T) {
 	if NewGlob.Mode == "load" {
-		staticSchemaStream := NewGlob.Stream + "static_schema"
+		staticSchemaStream := NewGlob.Stream + "staticschema"
 		staticSchemaFlagHeader := map[string]string{"X-P-Static-Schema-Flag": "true"}
 		CreateStreamWithSchemaBody(t, NewGlob.Client, staticSchemaStream, staticSchemaFlagHeader)
 		cmd := exec.Command("k6",
@@ -112,6 +120,14 @@ func TestLoadStreamBatchWithK6_StaticSchema(t *testing.T) {
 		t.Log(string(op))
 		DeleteStream(t, NewGlob.Client, staticSchemaStream)
 	}
+}
+
+func TestLoadStream_StaticSchema_EventWithNewField(t *testing.T) {
+	staticSchemaStream := NewGlob.Stream + "staticschema"
+	staticSchemaFlagHeader := map[string]string{"X-P-Static-Schema-Flag": "true"}
+	CreateStreamWithSchemaBody(t, NewGlob.Client, staticSchemaStream, staticSchemaFlagHeader)
+	IngestOneEventForStaticSchemaStream_NewFieldInLog(t, staticSchemaStream)
+	DeleteStream(t, NewGlob.Client, staticSchemaStream)
 }
 func TestSmokeQueryTwoStreams(t *testing.T) {
 	stream1 := NewGlob.Stream + "1"
