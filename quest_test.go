@@ -87,6 +87,32 @@ func TestTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t *testing.T) {
 	DeleteStream(t, NewGlob.Client, historicalStream)
 }
 
+func TestLoadStreamBatchWithK6_StaticSchema(t *testing.T) {
+	if NewGlob.Mode == "load" {
+		staticSchemaStream := NewGlob.Stream + "static_schema"
+		staticSchemaFlagHeader := map[string]string{"X-P-Static-Schema-Flag": "true"}
+		CreateStreamWithSchemaBody(t, NewGlob.Client, staticSchemaStream, staticSchemaFlagHeader)
+		cmd := exec.Command("k6",
+			"run",
+			"-e", fmt.Sprintf("P_URL=%s", NewGlob.Url.String()),
+			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.Username),
+			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.Password),
+			"-e", fmt.Sprintf("P_STREAM=%s", staticSchemaStream),
+			"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
+			"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", schema_count),
+			"./scripts/load_batch_events.js",
+			"--vus=", vus,
+			"--duration=", duration)
+
+		cmd.Run()
+		op, err := cmd.Output()
+		if err != nil {
+			t.Log(err)
+		}
+		t.Log(string(op))
+		DeleteStream(t, NewGlob.Client, staticSchemaStream)
+	}
+}
 func TestSmokeQueryTwoStreams(t *testing.T) {
 	stream1 := NewGlob.Stream + "1"
 	stream2 := NewGlob.Stream + "2"

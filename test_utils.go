@@ -82,6 +82,96 @@ func CreateStreamWithHeader(t *testing.T, client HTTPClient, stream string, head
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
 }
 
+func CreateStreamWithSchemaBody(t *testing.T, client HTTPClient, stream string, header map[string]string) {
+	var schema_payload string = `{
+		"fields":[
+		 {
+			 "name": "source_time",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "level",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "message",
+			 "data_type": "string"
+		 },
+         {
+			 "name": "version",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "user_id",
+			 "data_type": "int"
+		 },
+		 {
+			 "name": "device_id",
+			 "data_type": "int"
+		 },
+		 {
+			 "name": "session_id",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "os",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "host",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "uuid",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "location",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "timezone",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "user_agent",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "runtime",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "request_body",
+			 "data_type": "string"
+		 },
+		 {
+			 "name": "status_code",
+			 "data_type": "int"
+		 },
+		 {
+			 "name": "response_time",
+			 "data_type": "int"
+		 },
+		 {
+			 "name": "process_id",
+			 "data_type": "int"
+		 },
+		 {
+			 "name": "app_meta",
+			 "data_type": "string"
+		 }
+	 ]
+	 }`
+	req, _ := client.NewRequest("PUT", "logstream/"+stream, bytes.NewBufferString(schema_payload))
+	for k, v := range header {
+		req.Header.Add(k, v)
+	}
+	response, err := client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
+}
+
 func DeleteStream(t *testing.T, client HTTPClient, stream string) {
 	req, _ := client.NewRequest("DELETE", "logstream/"+stream, nil)
 	response, err := client.Do(req)
