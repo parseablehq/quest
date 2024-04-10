@@ -274,8 +274,8 @@ func TestSmokeRoles(t *testing.T) {
 			body:     RoleWriter(NewGlob.Stream),
 		},
 		{
-			roleName: "ingester",
-			body:     RoleIngester(NewGlob.Stream),
+			roleName: "ingestor",
+			body:     Roleingestor(NewGlob.Stream),
 		},
 	}
 
