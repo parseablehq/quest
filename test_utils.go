@@ -201,7 +201,7 @@ func RunFlog(t *testing.T, stream string) {
 }
 
 func IngestOneEventWithTimePartition_TimeStampMismatch(t *testing.T, stream string) {
-	var test_payload string = `{"source_time":"2024-03-26T18:08:00.434Z","level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingester 8020"}`
+	var test_payload string = `{"source_time":"2024-03-26T18:08:00.434Z","level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingestor 8020"}`
 	req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
 	req.Header.Add("X-P-Stream", stream)
 	response, err := NewGlob.Client.Do(req)
@@ -210,7 +210,7 @@ func IngestOneEventWithTimePartition_TimeStampMismatch(t *testing.T, stream stri
 }
 
 func IngestOneEventWithTimePartition_NoTimePartitionInLog(t *testing.T, stream string) {
-	var test_payload string = `{"level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingester 8020"}`
+	var test_payload string = `{"level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingestor 8020"}`
 	req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
 	req.Header.Add("X-P-Stream", stream)
 	response, err := NewGlob.Client.Do(req)
@@ -219,7 +219,7 @@ func IngestOneEventWithTimePartition_NoTimePartitionInLog(t *testing.T, stream s
 }
 
 func IngestOneEventWithTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t *testing.T, stream string) {
-	var test_payload string = `{"source_time":"2024-03-26", "level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingester 8020"}`
+	var test_payload string = `{"source_time":"2024-03-26", "level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingestor 8020"}`
 	req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
 	req.Header.Add("X-P-Stream", stream)
 	response, err := NewGlob.Client.Do(req)
@@ -228,7 +228,7 @@ func IngestOneEventWithTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t
 }
 
 func IngestOneEventForStaticSchemaStream_NewFieldInLog(t *testing.T, stream string) {
-	var test_payload string = `{"source_time":"2024-03-26", "level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingester 8020"}`
+	var test_payload string = `{"source_time":"2024-03-26", "level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingestor 8020"}`
 	req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
 	req.Header.Add("X-P-Stream", stream)
 	response, err := NewGlob.Client.Do(req)
@@ -523,7 +523,7 @@ func checkAPIAccess(t *testing.T, client HTTPClient, stream string, role string)
 		require.NoErrorf(t, err, "Request failed: %s", err)
 		require.Equalf(t, 403, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 
-	case "ingester":
+	case "ingestor":
 		// Check access to non-protected API
 		req, _ := client.NewRequest("GET", "liveness", nil)
 		response, err := client.Do(req)
