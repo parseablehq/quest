@@ -179,7 +179,7 @@ func DeleteStream(t *testing.T, client HTTPClient, stream string) {
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
 }
 
-func RunFlog(t *testing.T, stream string) {
+func RunFlog(t *testing.T, client HTTPClient, stream string) {
 	cmd := exec.Command("flog", "-f", "json", "-n", "50")
 	var out strings.Builder
 	cmd.Stdout = &out
@@ -192,55 +192,55 @@ func RunFlog(t *testing.T, stream string) {
 		payload.WriteString(obj)
 		payload.WriteRune(']')
 
-		req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(payload.String()))
+		req, _ := client.NewRequest("POST", "ingest", bytes.NewBufferString(payload.String()))
 		req.Header.Add("X-P-Stream", stream)
-		response, err := NewGlob.Client.Do(req)
+		response, err := client.Do(req)
 		require.NoErrorf(t, err, "Request failed: %s", err)
 		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 	}
 }
 
-func IngestOneEventWithTimePartition_TimeStampMismatch(t *testing.T, stream string) {
+func IngestOneEventWithTimePartition_TimeStampMismatch(t *testing.T, client HTTPClient, stream string) {
 	var test_payload string = `{"source_time":"2024-03-26T18:08:00.434Z","level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingestor 8020"}`
-	req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
+	req, _ := client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
 	req.Header.Add("X-P-Stream", stream)
-	response, err := NewGlob.Client.Do(req)
+	response, err := client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 400, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 }
 
-func IngestOneEventWithTimePartition_NoTimePartitionInLog(t *testing.T, stream string) {
+func IngestOneEventWithTimePartition_NoTimePartitionInLog(t *testing.T, client HTTPClient, stream string) {
 	var test_payload string = `{"level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingestor 8020"}`
-	req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
+	req, _ := client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
 	req.Header.Add("X-P-Stream", stream)
-	response, err := NewGlob.Client.Do(req)
+	response, err := client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 400, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 }
 
-func IngestOneEventWithTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t *testing.T, stream string) {
+func IngestOneEventWithTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t *testing.T, client HTTPClient, stream string) {
 	var test_payload string = `{"source_time":"2024-03-26", "level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingestor 8020"}`
-	req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
+	req, _ := client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
 	req.Header.Add("X-P-Stream", stream)
-	response, err := NewGlob.Client.Do(req)
+	response, err := client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 400, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 }
 
-func IngestOneEventForStaticSchemaStream_NewFieldInLog(t *testing.T, stream string) {
+func IngestOneEventForStaticSchemaStream_NewFieldInLog(t *testing.T, client HTTPClient, stream string) {
 	var test_payload string = `{"source_time":"2024-03-26", "level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingestor 8020"}`
-	req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
+	req, _ := client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
 	req.Header.Add("X-P-Stream", stream)
-	response, err := NewGlob.Client.Do(req)
+	response, err := client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 400, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 }
 
-func IngestOneEventForStaticSchemaStream_SameFieldsInLog(t *testing.T, stream string) {
+func IngestOneEventForStaticSchemaStream_SameFieldsInLog(t *testing.T, client HTTPClient, stream string) {
 	var test_payload string = `{"source_time":"2024-03-26", "level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc"}`
-	req, _ := NewGlob.Client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
+	req, _ := client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
 	req.Header.Add("X-P-Stream", stream)
-	response, err := NewGlob.Client.Do(req)
+	response, err := client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 }

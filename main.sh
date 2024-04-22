@@ -34,11 +34,13 @@ minio_secret_key=${10}
 : "${minio_secret_key:="minioadmin"}"
 minio_bucket=${11}
 : "${minio_bucket:="parseable"}"
-
+ingestor_endpoint=${12}
+ingestor_username=${13}
+ingestor_password=${14}
 stream_name=$(head /dev/urandom | tr -dc a-z | head -c10)
 
 run () {
-  ./quest.test -test.v -mode="$mode" -url="$endpoint" -stream="$stream_name" -user="$username" -pass="$password" -minio-url="$minio_url" -minio-user="$minio_access_key" -minio-pass="$minio_secret_key" -minio-bucket="$minio_bucket"
+  ./quest.test -test.v -mode="$mode" -query-url="$endpoint" -stream="$stream_name" -query-user="$username" -query-pass="$password" -minio-url="$minio_url" -minio-user="$minio_access_key" -minio-pass="$minio_secret_key" -minio-bucket="$minio_bucket" -ingestor-url="$ingestor_endpoint" -ingestor-user="$ingestor_username" -ingestor-pass="$ingestor_password"
   return $?
 }
 

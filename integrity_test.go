@@ -139,15 +139,15 @@ func TestIntegrity(t *testing.T) {
 		require.Equal(t, actualFlog, expectedFlog)
 	}
 
-	DeleteStream(t, NewGlob.Client, NewGlob.Stream)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
 func ingestFlogs(flogs []Flog, stream string) error {
 	payload, _ := json.Marshal(flogs)
 
-	req, _ := NewGlob.Client.NewRequest(http.MethodPost, "ingest", bytes.NewBuffer(payload))
+	req, _ := NewGlob.QueryClient.NewRequest(http.MethodPost, "ingest", bytes.NewBuffer(payload))
 	req.Header.Add("X-P-Stream", stream)
-	response, err := NewGlob.Client.Do(req)
+	response, err := NewGlob.QueryClient.Do(req)
 	if err != nil {
 		return err
 	}
