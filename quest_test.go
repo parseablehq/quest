@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -54,6 +55,7 @@ func TestSmokeListLogStream(t *testing.T) {
 
 func TestSmokeCreateStream(t *testing.T) {
 	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
 func TestSmokeIngestEventsToStream(t *testing.T) {
@@ -62,6 +64,8 @@ func TestSmokeIngestEventsToStream(t *testing.T) {
 		RunFlog(t, NewGlob.QueryClient, NewGlob.Stream)
 	} else {
 		RunFlog(t, NewGlob.IngestorClient, NewGlob.Stream)
+		// Calling Sleep method
+		time.Sleep(60 * time.Second)
 	}
 
 	QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 50)
@@ -73,7 +77,12 @@ func TestTimePartition_TimeStampMismatch(t *testing.T) {
 	historicalStream := NewGlob.Stream + "historical"
 	timeHeader := map[string]string{"X-P-Time-Partition": "source_time"}
 	CreateStreamWithHeader(t, NewGlob.QueryClient, historicalStream, timeHeader)
-	IngestOneEventWithTimePartition_TimeStampMismatch(t, NewGlob.QueryClient, historicalStream)
+	if NewGlob.IngestorUrl.String() == "" {
+		IngestOneEventWithTimePartition_TimeStampMismatch(t, NewGlob.QueryClient, historicalStream)
+	} else {
+		IngestOneEventWithTimePartition_TimeStampMismatch(t, NewGlob.IngestorClient, historicalStream)
+
+	}
 	DeleteStream(t, NewGlob.QueryClient, historicalStream)
 }
 
@@ -184,6 +193,7 @@ func TestSmokeQueryTwoStreams(t *testing.T) {
 	} else {
 		RunFlog(t, NewGlob.IngestorClient, stream1)
 		RunFlog(t, NewGlob.IngestorClient, stream2)
+		time.Sleep(60 * time.Second)
 	}
 	QueryTwoLogStreamCount(t, NewGlob.QueryClient, stream1, stream2, 100)
 	DeleteStream(t, NewGlob.QueryClient, stream1)
@@ -196,6 +206,7 @@ func TestSmokeRunQueries(t *testing.T) {
 		RunFlog(t, NewGlob.QueryClient, NewGlob.Stream)
 	} else {
 		RunFlog(t, NewGlob.IngestorClient, NewGlob.Stream)
+		time.Sleep(60 * time.Second)
 	}
 
 	// test count
@@ -244,44 +255,56 @@ func TestSmokeLoadWithK6Stream(t *testing.T) {
 
 	QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 60000)
 	AssertStreamSchema(t, NewGlob.QueryClient, NewGlob.Stream, SchemaBody)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
 func TestSmokeSetAlert(t *testing.T) {
 	if NewGlob.IngestorUrl.String() == "" {
+		CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+
 		req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/alert", strings.NewReader(AlertBody))
 		response, err := NewGlob.QueryClient.Do(req)
 		require.NoErrorf(t, err, "Request failed: %s", err)
 		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+
 	}
 
 }
 
 func TestSmokeGetAlert(t *testing.T) {
 	if NewGlob.IngestorUrl.String() == "" {
+		CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+
 		req, _ := NewGlob.QueryClient.NewRequest("GET", "logstream/"+NewGlob.Stream+"/alert", nil)
 		response, err := NewGlob.QueryClient.Do(req)
 		require.NoErrorf(t, err, "Request failed: %s", err)
 		body := readAsString(response.Body)
 		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
 		require.JSONEq(t, AlertBody, body, "Get alert response doesn't match with Alert config returned")
+		DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	}
 
 }
 
 func TestSmokeSetRetention(t *testing.T) {
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/retention", strings.NewReader(RetentionBody))
 	response, err := NewGlob.QueryClient.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+
 }
 
 func TestSmokeGetRetention(t *testing.T) {
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	req, _ := NewGlob.QueryClient.NewRequest("GET", "logstream/"+NewGlob.Stream+"/retention", nil)
 	response, err := NewGlob.QueryClient.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	body := readAsString(response.Body)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
 	require.JSONEq(t, RetentionBody, body, "Get retention response doesn't match with retention config returned")
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
 // This test calls all the User API endpoints
@@ -307,6 +330,8 @@ func TestSmoke_AllUsersAPI(t *testing.T) {
 // This test checks that a new user doesn't get any role by default
 // even if a default role is set.
 func TestSmoke_NewUserNoRole(t *testing.T) {
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+
 	CreateRole(t, NewGlob.QueryClient, "dummyrole", dummyRole)
 	SetDefaultRole(t, NewGlob.QueryClient, "dummyrole")
 	AssertDefaultRole(t, NewGlob.QueryClient, "\"dummyrole\"")
@@ -319,9 +344,12 @@ func TestSmoke_NewUserNoRole(t *testing.T) {
 	PutSingleEventExpectErr(t, userClient, NewGlob.Stream)
 
 	DeleteUser(t, NewGlob.QueryClient, "dummyuser")
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+
 }
 
 func TestSmokeRbacBasic(t *testing.T) {
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	CreateRole(t, NewGlob.QueryClient, "dummy", dummyRole)
 	AssertRole(t, NewGlob.QueryClient, "dummy", dummyRole)
 	CreateUserWithRole(t, NewGlob.QueryClient, "dummy", []string{"dummy"})
@@ -331,9 +359,11 @@ func TestSmokeRbacBasic(t *testing.T) {
 	checkAPIAccess(t, userClient, NewGlob.Stream, "editor")
 	DeleteUser(t, NewGlob.QueryClient, "dummy")
 	DeleteRole(t, NewGlob.QueryClient, "dummy")
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
 func TestSmokeRoles(t *testing.T) {
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	cases := []struct {
 		roleName string
 		body     string
@@ -371,6 +401,7 @@ func TestSmokeRoles(t *testing.T) {
 			DeleteRole(t, NewGlob.QueryClient, tc.roleName)
 		})
 	}
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
 func TestLoadStreamBatchWithK6(t *testing.T) {
@@ -415,6 +446,7 @@ func TestLoadStreamBatchWithK6(t *testing.T) {
 			}
 			t.Log(string(op))
 		}
+		DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 
 	}
 }
@@ -508,6 +540,7 @@ func TestLoadStreamNoBatchWithK6(t *testing.T) {
 			}
 			t.Log(string(op))
 		}
+		DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 
 	}
 }
