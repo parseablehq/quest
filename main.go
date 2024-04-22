@@ -90,33 +90,46 @@ var NewGlob = func() Glob {
 
 	queryClient := DefaultClient(*parsedQueryTargetUrl, queryUsername, queryPassword)
 
-	var parsedIngestorTargetUrl *url.URL
-	var ingestorClient HTTPClient
 	if targetIngestorUrl != "" {
 		parsedIngestorTargetUrl, err := url.Parse(targetIngestorUrl)
 		if err != nil {
 			panic("Could not parse url")
 		}
 
-		ingestorClient = DefaultClient(*parsedIngestorTargetUrl, ingestorUsername, ingestorPassword)
+		ingestorClient := DefaultClient(*parsedIngestorTargetUrl, ingestorUsername, ingestorPassword)
+		return Glob{
+			QueryUrl:         *parsedQueryTargetUrl,
+			QueryUsername:    queryUsername,
+			QueryPassword:    queryPassword,
+			QueryClient:      queryClient,
+			IngestorUrl:      *parsedIngestorTargetUrl,
+			IngestorUsername: ingestorUsername,
+			IngestorPassword: ingestorPassword,
+			IngestorClient:   ingestorClient,
+			Stream:           stream,
+			Mode:             mode,
+			MinIoConfig: MinIoConfig{
+				Url:    minioUrl,
+				User:   minioUser,
+				Pass:   minioPass,
+				Bucket: minioBucket,
+			},
+		}
+	} else {
+		return Glob{
+			QueryUrl:      *parsedQueryTargetUrl,
+			QueryUsername: queryUsername,
+			QueryPassword: queryPassword,
+			QueryClient:   queryClient,
+			Stream:        stream,
+			Mode:          mode,
+			MinIoConfig: MinIoConfig{
+				Url:    minioUrl,
+				User:   minioUser,
+				Pass:   minioPass,
+				Bucket: minioBucket,
+			},
+		}
 	}
 
-	return Glob{
-		QueryUrl:         *parsedQueryTargetUrl,
-		QueryUsername:    queryUsername,
-		QueryPassword:    queryPassword,
-		QueryClient:      queryClient,
-		IngestorUrl:      *parsedIngestorTargetUrl,
-		IngestorUsername: ingestorUsername,
-		IngestorPassword: ingestorPassword,
-		IngestorClient:   ingestorClient,
-		Stream:           stream,
-		Mode:             mode,
-		MinIoConfig: MinIoConfig{
-			Url:    minioUrl,
-			User:   minioUser,
-			Pass:   minioPass,
-			Bucket: minioBucket,
-		},
-	}
 }()
