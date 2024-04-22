@@ -144,16 +144,28 @@ func TestIntegrity(t *testing.T) {
 
 func ingestFlogs(flogs []Flog, stream string) error {
 	payload, _ := json.Marshal(flogs)
+	if NewGlob.IngestorUrl.String() == "" {
+		req, _ := NewGlob.QueryClient.NewRequest(http.MethodPost, "ingest", bytes.NewBuffer(payload))
+		req.Header.Add("X-P-Stream", stream)
+		response, err := NewGlob.QueryClient.Do(req)
+		if err != nil {
+			return err
+		}
 
-	req, _ := NewGlob.QueryClient.NewRequest(http.MethodPost, "ingest", bytes.NewBuffer(payload))
-	req.Header.Add("X-P-Stream", stream)
-	response, err := NewGlob.QueryClient.Do(req)
-	if err != nil {
-		return err
-	}
+		if response.StatusCode != http.StatusOK {
+			return fmt.Errorf("couldn't ingest logs, status code = %d", response.StatusCode)
+		}
+	} else {
+		req, _ := NewGlob.IngestorClient.NewRequest(http.MethodPost, "ingest", bytes.NewBuffer(payload))
+		req.Header.Add("X-P-Stream", stream)
+		response, err := NewGlob.QueryClient.Do(req)
+		if err != nil {
+			return err
+		}
 
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("couldn't ingest logs, status code = %d", response.StatusCode)
+		if response.StatusCode != http.StatusOK {
+			return fmt.Errorf("couldn't ingest logs, status code = %d", response.StatusCode)
+		}
 	}
 
 	return nil
