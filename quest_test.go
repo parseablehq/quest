@@ -262,8 +262,8 @@ func TestSmokeLoadWithK6Stream(t *testing.T) {
 }
 
 func TestSmokeSetAlert(t *testing.T) {
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	if NewGlob.IngestorUrl.String() == "" {
-		CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 		RunFlog(t, NewGlob.QueryClient, NewGlob.Stream)
 		req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/alert", strings.NewReader(AlertBody))
 		response, err := NewGlob.QueryClient.Do(req)
@@ -282,8 +282,8 @@ func TestSmokeGetAlert(t *testing.T) {
 		body := readAsString(response.Body)
 		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
 		require.JSONEq(t, AlertBody, body, "Get alert response doesn't match with Alert config returned")
-		DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	}
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 
 }
 
