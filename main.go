@@ -27,12 +27,16 @@ func main() {
 }
 
 type Glob struct {
-	Url      url.URL
-	Username string
-	Password string
-	Stream   string
-	Client   HTTPClient
-	Mode     string
+	QueryUrl         url.URL
+	QueryUsername    string
+	QueryPassword    string
+	IngestorUrl      url.URL
+	IngestorUsername string
+	IngestorPassword string
+	Stream           string
+	QueryClient      HTTPClient
+	IngestorClient   HTTPClient
+	Mode             string
 	MinIoConfig
 }
 
@@ -45,9 +49,14 @@ type MinIoConfig struct {
 
 var NewGlob = func() Glob {
 	testing.Init()
-	var targetUrl string
-	var username string
-	var password string
+	var targetQueryUrl string
+	var queryUsername string
+	var queryPassword string
+
+	var targetIngestorUrl string
+	var ingestorUsername string
+	var ingestorPassword string
+
 	var stream string
 	var mode string
 	// XXX
@@ -56,9 +65,14 @@ var NewGlob = func() Glob {
 	var minioPass string
 	var minioBucket string
 
-	flag.StringVar(&targetUrl, "url", "http://localhost:8000", "Specify url. Default is root")
-	flag.StringVar(&username, "user", "admin", "Specify username. Default is admin")
-	flag.StringVar(&password, "pass", "admin", "Specify pass. Default is admin")
+	flag.StringVar(&targetQueryUrl, "query-url", "http://localhost:8000", "Specify url. Default is root")
+	flag.StringVar(&queryUsername, "query-user", "admin", "Specify username. Default is admin")
+	flag.StringVar(&queryPassword, "query-pass", "admin", "Specify pass. Default is admin")
+
+	flag.StringVar(&targetIngestorUrl, "ingestor-url", "", "Specify url. Default is root")
+	flag.StringVar(&ingestorUsername, "ingestor-user", "admin", "Specify username. Default is admin")
+	flag.StringVar(&ingestorPassword, "ingestor-pass", "admin", "Specify pass. Default is admin")
+
 	flag.StringVar(&stream, "stream", "app", "Specify stream. Default is app")
 	flag.StringVar(&mode, "mode", "smoke", "Specify mode. Default is smoke")
 
@@ -69,25 +83,53 @@ var NewGlob = func() Glob {
 
 	flag.Parse()
 
-	parsedTargetUrl, err := url.Parse(targetUrl)
+	parsedQueryTargetUrl, err := url.Parse(targetQueryUrl)
 	if err != nil {
 		panic("Could not parse url")
 	}
 
-	client := DefaultClient(*parsedTargetUrl, username, password)
+	queryClient := DefaultClient(*parsedQueryTargetUrl, queryUsername, queryPassword)
 
-	return Glob{
-		Url:      *parsedTargetUrl,
-		Username: username,
-		Password: password,
-		Stream:   stream,
-		Client:   client,
-		Mode:     mode,
-		MinIoConfig: MinIoConfig{
-			Url:    minioUrl,
-			User:   minioUser,
-			Pass:   minioPass,
-			Bucket: minioBucket,
-		},
+	if targetIngestorUrl != "" {
+		parsedIngestorTargetUrl, err := url.Parse(targetIngestorUrl)
+		if err != nil {
+			panic("Could not parse url")
+		}
+
+		ingestorClient := DefaultClient(*parsedIngestorTargetUrl, ingestorUsername, ingestorPassword)
+		return Glob{
+			QueryUrl:         *parsedQueryTargetUrl,
+			QueryUsername:    queryUsername,
+			QueryPassword:    queryPassword,
+			QueryClient:      queryClient,
+			IngestorUrl:      *parsedIngestorTargetUrl,
+			IngestorUsername: ingestorUsername,
+			IngestorPassword: ingestorPassword,
+			IngestorClient:   ingestorClient,
+			Stream:           stream,
+			Mode:             mode,
+			MinIoConfig: MinIoConfig{
+				Url:    minioUrl,
+				User:   minioUser,
+				Pass:   minioPass,
+				Bucket: minioBucket,
+			},
+		}
+	} else {
+		return Glob{
+			QueryUrl:      *parsedQueryTargetUrl,
+			QueryUsername: queryUsername,
+			QueryPassword: queryPassword,
+			QueryClient:   queryClient,
+			Stream:        stream,
+			Mode:          mode,
+			MinIoConfig: MinIoConfig{
+				Url:    minioUrl,
+				User:   minioUser,
+				Pass:   minioPass,
+				Bucket: minioBucket,
+			},
+		}
 	}
+
 }()

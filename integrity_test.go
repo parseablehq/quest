@@ -84,6 +84,7 @@ func (flog *ParquetFlog) Deref() Flog {
 // - Download parquet files from the store created by Parseable for the minute
 // - Compare the sent logs with the ones loaded from the downloaded parquet
 func TestIntegrity(t *testing.T) {
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	iterations := 2
 	flogsPerIteration := 100
 
@@ -139,21 +140,33 @@ func TestIntegrity(t *testing.T) {
 		require.Equal(t, actualFlog, expectedFlog)
 	}
 
-	DeleteStream(t, NewGlob.Client, NewGlob.Stream)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
 func ingestFlogs(flogs []Flog, stream string) error {
 	payload, _ := json.Marshal(flogs)
+	if NewGlob.IngestorUrl.String() == "" {
+		req, _ := NewGlob.QueryClient.NewRequest(http.MethodPost, "ingest", bytes.NewBuffer(payload))
+		req.Header.Add("X-P-Stream", stream)
+		response, err := NewGlob.QueryClient.Do(req)
+		if err != nil {
+			return err
+		}
 
-	req, _ := NewGlob.Client.NewRequest(http.MethodPost, "ingest", bytes.NewBuffer(payload))
-	req.Header.Add("X-P-Stream", stream)
-	response, err := NewGlob.Client.Do(req)
-	if err != nil {
-		return err
-	}
+		if response.StatusCode != http.StatusOK {
+			return fmt.Errorf("couldn't ingest logs, status code = %d", response.StatusCode)
+		}
+	} else {
+		req, _ := NewGlob.IngestorClient.NewRequest(http.MethodPost, "ingest", bytes.NewBuffer(payload))
+		req.Header.Add("X-P-Stream", stream)
+		response, err := NewGlob.QueryClient.Do(req)
+		if err != nil {
+			return err
+		}
 
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("couldn't ingest logs, status code = %d", response.StatusCode)
+		if response.StatusCode != http.StatusOK {
+			return fmt.Errorf("couldn't ingest logs, status code = %d", response.StatusCode)
+		}
 	}
 
 	return nil
