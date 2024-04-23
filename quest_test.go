@@ -264,20 +264,18 @@ func TestSmokeLoadWithK6Stream(t *testing.T) {
 func TestSmokeSetAlert(t *testing.T) {
 	if NewGlob.IngestorUrl.String() == "" {
 		CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
-
+		RunFlog(t, NewGlob.QueryClient, NewGlob.Stream)
 		req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/alert", strings.NewReader(AlertBody))
 		response, err := NewGlob.QueryClient.Do(req)
 		require.NoErrorf(t, err, "Request failed: %s", err)
 		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
-		DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+
 	}
 
 }
 
 func TestSmokeGetAlert(t *testing.T) {
 	if NewGlob.IngestorUrl.String() == "" {
-		CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
-
 		req, _ := NewGlob.QueryClient.NewRequest("GET", "logstream/"+NewGlob.Stream+"/alert", nil)
 		response, err := NewGlob.QueryClient.Do(req)
 		require.NoErrorf(t, err, "Request failed: %s", err)
