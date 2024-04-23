@@ -35,6 +35,7 @@ const (
 )
 
 func TestSmokeListLogStream(t *testing.T) {
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	req, err := NewGlob.QueryClient.NewRequest("GET", "logstream", nil)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 
@@ -51,6 +52,7 @@ func TestSmokeListLogStream(t *testing.T) {
 			}
 		}
 	}
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
 func TestSmokeCreateStream(t *testing.T) {
@@ -193,8 +195,9 @@ func TestSmokeQueryTwoStreams(t *testing.T) {
 	} else {
 		RunFlog(t, NewGlob.IngestorClient, stream1)
 		RunFlog(t, NewGlob.IngestorClient, stream2)
-		time.Sleep(60 * time.Second)
+
 	}
+	time.Sleep(60 * time.Second)
 	QueryTwoLogStreamCount(t, NewGlob.QueryClient, stream1, stream2, 100)
 	DeleteStream(t, NewGlob.QueryClient, stream1)
 	DeleteStream(t, NewGlob.QueryClient, stream2)
@@ -206,9 +209,9 @@ func TestSmokeRunQueries(t *testing.T) {
 		RunFlog(t, NewGlob.QueryClient, NewGlob.Stream)
 	} else {
 		RunFlog(t, NewGlob.IngestorClient, NewGlob.Stream)
-		time.Sleep(60 * time.Second)
-	}
 
+	}
+	time.Sleep(60 * time.Second)
 	// test count
 	QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 50)
 	// test yeild all values
@@ -252,7 +255,7 @@ func TestSmokeLoadWithK6Stream(t *testing.T) {
 		cmd.Run()
 		cmd.Output()
 	}
-
+	time.Sleep(60 * time.Second)
 	QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 60000)
 	AssertStreamSchema(t, NewGlob.QueryClient, NewGlob.Stream, SchemaBody)
 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
@@ -266,7 +269,7 @@ func TestSmokeSetAlert(t *testing.T) {
 		response, err := NewGlob.QueryClient.Do(req)
 		require.NoErrorf(t, err, "Request failed: %s", err)
 		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
-
+		DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	}
 
 }
@@ -292,12 +295,10 @@ func TestSmokeSetRetention(t *testing.T) {
 	response, err := NewGlob.QueryClient.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
-	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 
 }
 
 func TestSmokeGetRetention(t *testing.T) {
-	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	req, _ := NewGlob.QueryClient.NewRequest("GET", "logstream/"+NewGlob.Stream+"/retention", nil)
 	response, err := NewGlob.QueryClient.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
@@ -540,7 +541,6 @@ func TestLoadStreamNoBatchWithK6(t *testing.T) {
 			}
 			t.Log(string(op))
 		}
-		DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 
 	}
 }

@@ -84,6 +84,7 @@ func (flog *ParquetFlog) Deref() Flog {
 // - Download parquet files from the store created by Parseable for the minute
 // - Compare the sent logs with the ones loaded from the downloaded parquet
 func TestIntegrity(t *testing.T) {
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	iterations := 2
 	flogsPerIteration := 100
 
