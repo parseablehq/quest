@@ -16,8 +16,12 @@ export const options = {
 };
 
 function current_time() {
-    let event = new Date();
-    return event.toISOString();
+    const startDate = new Date('2024-05-17T15:00:00');
+    const endDate = new Date('2024-05-17T15:03:59');
+    const timeDiff = endDate.getTime() - startDate.getTime();
+    const randomTime = Math.random() * timeDiff;
+    const randomDate = new Date(startDate.getTime() + randomTime);
+    return(randomDate.toISOString());
 }
 
 function schemas() {
