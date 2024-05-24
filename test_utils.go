@@ -265,6 +265,26 @@ func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count u
 	require.Equalf(t, expected, body, "Query count incorrect; Expected %s, Actual %s", expected, body)
 }
 
+func QueryLogStreamCount_WithTimePartition(t *testing.T, client HTTPClient, stream string, count uint64) {
+	// Query last 10 minutes of data only
+	endTime := "2024-05-17T10:00:00.000Z"
+	startTime := "2024-05-17T08:00:00.000Z"
+
+	query := map[string]interface{}{
+		"query":     "select count(*) as count from " + stream,
+		"startTime": startTime,
+		"endTime":   endTime,
+	}
+	queryJSON, _ := json.Marshal(query)
+	req, _ := client.NewRequest("POST", "query", bytes.NewBuffer(queryJSON))
+	response, err := client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	body := readAsString(response.Body)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
+	expected := fmt.Sprintf(`[{"count":%d}]`, count)
+	require.Equalf(t, expected, body, "Query count incorrect; Expected %s, Actual %s", expected, body)
+}
+
 func QueryTwoLogStreamCount(t *testing.T, client HTTPClient, stream1 string, stream2 string, count uint64) {
 	// Query last 10 minutes of data only
 	endTime := time.Now().Add(time.Second).Format(time.RFC3339Nano)
