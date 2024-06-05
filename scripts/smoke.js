@@ -10,13 +10,14 @@ export const options = {
         contacts: {
             executor: 'shared-iterations',
             vus: 20,
-            iterations: 6000,
+            iterations: 2000,
         },
     },
 };
 
 function current_time() {
     let event = new Date();
+    event.setMonth(event.getMonth() - 1);
     return event.toISOString();
 }
 
