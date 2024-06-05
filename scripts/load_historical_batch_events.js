@@ -17,7 +17,8 @@ export const options = {
 
 function current_time() {
     let event = new Date();
-    return event.toUTCString();
+    event.setMonth(event.getMonth() - 1);
+    return event.toISOString();
 }
 
 function schemas() {

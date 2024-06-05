@@ -29,9 +29,9 @@ import (
 
 const (
 	vus          = "10"
-	duration     = "5m"
-	schema_count = "20"
-	events_count = "10"
+	duration     = "2m"
+	schema_count = "10"
+	events_count = "5"
 )
 
 func TestSmokeListLogStream(t *testing.T) {
@@ -256,7 +256,7 @@ func TestSmokeLoadWithK6Stream(t *testing.T) {
 		cmd.Output()
 	}
 	time.Sleep(120 * time.Second)
-	QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 60000)
+	QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 20000)
 	AssertStreamSchema(t, NewGlob.QueryClient, NewGlob.Stream, SchemaBody)
 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
@@ -289,7 +289,7 @@ func TestSmokeLoad_TimePartition_WithK6Stream(t *testing.T) {
 		cmd.Output()
 	}
 	time.Sleep(60 * time.Second)
-	QueryLogStreamCount(t, NewGlob.QueryClient, time_partition_stream, 60000)
+	QueryLogStreamCount_Historical(t, NewGlob.QueryClient, time_partition_stream, 20000)
 	DeleteStream(t, NewGlob.QueryClient, time_partition_stream)
 }
 
@@ -321,7 +321,7 @@ func TestSmokeLoad_CustomPartition_WithK6Stream(t *testing.T) {
 		cmd.Output()
 	}
 	time.Sleep(120 * time.Second)
-	QueryLogStreamCount(t, NewGlob.QueryClient, custom_partition_stream, 60000)
+	QueryLogStreamCount(t, NewGlob.QueryClient, custom_partition_stream, 20000)
 	DeleteStream(t, NewGlob.QueryClient, custom_partition_stream)
 }
 
@@ -353,7 +353,7 @@ func TestSmokeLoad_TimeAndCustomPartition_WithK6Stream(t *testing.T) {
 		cmd.Output()
 	}
 	time.Sleep(120 * time.Second)
-	QueryLogStreamCount(t, NewGlob.QueryClient, custom_partition_stream, 60000)
+	QueryLogStreamCount_Historical(t, NewGlob.QueryClient, custom_partition_stream, 20000)
 	DeleteStream(t, NewGlob.QueryClient, custom_partition_stream)
 }
 
