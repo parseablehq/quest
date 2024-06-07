@@ -268,8 +268,8 @@ func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count u
 func QueryLogStreamCount_Historical(t *testing.T, client HTTPClient, stream string, count uint64) {
 	// Query last 30 minutes of data only
 	now := time.Now()
-	startTime := now.AddDate(0, 0, -32).Format(time.RFC3339Nano)
-	endTime := now.AddDate(0, 0, -29).Format(time.RFC3339Nano)
+	startTime := now.AddDate(0, 0, -33).Format(time.RFC3339Nano)
+	endTime := now.AddDate(0, 0, -27).Format(time.RFC3339Nano)
 
 	query := map[string]interface{}{
 		"query":     "select count(*) as count from " + stream,
