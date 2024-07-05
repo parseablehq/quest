@@ -1,0 +1,22 @@
+apiVersion: k6.io/v1alpha1
+kind: TestRun
+metadata: 
+  name: load-test-ing1 
+  spec: 
+    parallelism: 1 
+    runner: 
+      nodeSelector: 
+        kubernetes.io/hostname: benchmarking-rk529 
+      env: 
+        - name: P_URL 
+          value: "http://parseable-ingestor-0.parseable-ingestor-headless.parseable.svc.cluster.local:8000" 
+        - name: P_STREAM 
+          value: "app1" 
+        - name: P_USERNAME 
+          value: "admin" 
+        - name: P_PASSWORD 
+          value: "admin" 
+    script: 
+      configMap: 
+        name: load-test 
+        file: load_batch_events.js

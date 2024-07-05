@@ -1,0 +1,20 @@
+apiVersion: k6.io/v1alpha1
+kind: TestRun
+metadata:
+  name: load-with-500-512-test
+spec:
+  parallelism: 6
+  runner:
+    env:
+     - name: P_URL
+       value: "http://parseable.parseable.svc.cluster.local:80"
+     - name: P_STREAM
+       value: "app1"
+     - name: P_USERNAME
+       value: "admin"
+     - name: P_PASSWORD
+       value: "admin"
+  script:
+    configMap:
+      name: load-test
+      file: load_batch_events.js
