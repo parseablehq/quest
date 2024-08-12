@@ -84,6 +84,25 @@ func (flog *ParquetFlog) Deref() Flog {
 // - Download parquet files from the store created by Parseable for the minute
 // - Compare the sent logs with the ones loaded from the downloaded parquet
 func TestIntegrity(t *testing.T) {
+
+	flogs := createAndIngest(t)
+	parquetFiles := downloadParquetFiles(NewGlob.Stream, NewGlob.MinIoConfig)
+	actualFlogs := loadFlogsFromParquetFiles(parquetFiles)
+
+	rowCount := len(actualFlogs)
+
+	for i, expectedFlog := range flogs {
+		// The rows in parquet written by Parseable will be latest first, so we
+		// compare the first of ours with the last of what we got from Parseable's
+		// store.
+		actualFlog := actualFlogs[rowCount-i-1].Deref()
+		require.Equal(t, actualFlog, expectedFlog)
+	}
+
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+}
+
+func createAndIngest(t *testing.T) []Flog {
 	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	iterations := 2
 	flogsPerIteration := 100
@@ -127,20 +146,7 @@ func TestIntegrity(t *testing.T) {
 		// XXX: We don't need to sleep for the entire minute, just until the next minute boundary.
 	}
 
-	parquetFiles := downloadParquetFiles(NewGlob.Stream, NewGlob.MinIoConfig)
-	actualFlogs := loadFlogsFromParquetFiles(parquetFiles)
-
-	rowCount := len(actualFlogs)
-
-	for i, expectedFlog := range flogs {
-		// The rows in parquet written by Parseable will be latest first, so we
-		// compare the first of ours with the last of what we got from Parseable's
-		// store.
-		actualFlog := actualFlogs[rowCount-i-1].Deref()
-		require.Equal(t, actualFlog, expectedFlog)
-	}
-
-	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	return flogs
 }
 
 func ingestFlogs(flogs []Flog, stream string) error {

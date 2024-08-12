@@ -34,6 +34,13 @@ const (
 	events_count = "5"
 )
 
+type StreamHotTier struct {
+	Size                string  `json:"size"`
+	UsedSize            *string `json:"used_size,omitempty"`
+	AvailableSize       *string `json:"available_size,omitempty"`
+	OldestDateTimeEntry *string `json:"oldest_date_time_entry,omitempty"`
+}
+
 func TestSmokeListLogStream(t *testing.T) {
 	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	req, err := NewGlob.QueryClient.NewRequest("GET", "logstream", nil)
@@ -400,6 +407,40 @@ func TestSmokeGetRetention(t *testing.T) {
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
 	require.JSONEq(t, RetentionBody, body, "Get retention response doesn't match with retention config returned")
 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+}
+
+func TestHotTierGetsLogs(t *testing.T) {
+	// create stream, put hot tier, ingest data for a duration, wait for 2-3 mins to see if all data is available in hot tier
+}
+
+func TestHotTierGetsLogsAfter(t *testing.T) {
+	logs := createAndIngest(t)
+
+	activateHotTier(t)
+	time.Sleep(60 * 2 * time.Second) // wait for 2 minutes to allow hot tier to sync
+
+	// fetch the logs from hot tier
+	req, _ := NewGlob.QueryClient.NewRequest("GET", "logstream/"+NewGlob.Stream+"/hottier", nil)
+	response, err := NewGlob.QueryClient.Do(req)
+	require.NoErrorf(t, err, "Fetching hot tier stream failed: %s", err)
+
+	// ascertain that they are in expected schema. prolly will be, just to be sure
+	body, err := readJsonBody[StreamHotTier](response.Body)
+	require.NoErrorf(t, err, "Hot tier response not in correct schema: %s", err)
+
+	// ascertain that the ingested all the ingested logs are present in hot tier
+	require.Equalf(t, len(logs), "%d", body.Size, "Total no. of ingested logs is %d but hot tier contains %d logs", len(logs), body.Size)
+
+	disableHotTier(t)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+}
+
+func TestHotTierLogCount(t *testing.T) {
+	// create stream, ingest data, query get count, set hot tier, wait for 2-3 mins, query again get count, both counts should match
+}
+
+func TestOldestHotTierEntry(t *testing.T) {
+	// create stream, ingest data for a duration, call GET /logstream/{logstream}/info - to get the first_event_at field then set hot tier, wait for 2-3 mins, call GET /hottier - to get oldest entry in hot tier then match both
 }
 
 // This test calls all the User API endpoints

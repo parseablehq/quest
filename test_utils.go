@@ -561,3 +561,19 @@ func checkAPIAccess(t *testing.T, client HTTPClient, stream string, role string)
 		require.Equalf(t, 403, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 	}
 }
+
+func activateHotTier(t *testing.T) {
+	req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/hottier", nil)
+	response, err := NewGlob.QueryClient.Do(req)
+	body := readAsString(response.Body)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
+	require.NoErrorf(t, err, "Activating hot tier failed: %s", err)
+}
+
+func disableHotTier(t *testing.T) {
+	req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/hottier", nil)
+	response, err := NewGlob.QueryClient.Do(req)
+	body := readAsString(response.Body)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
+	require.NoErrorf(t, err, "Disabling hot tier failed: %s", err)
+}
