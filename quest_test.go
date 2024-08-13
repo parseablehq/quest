@@ -428,8 +428,14 @@ func TestHotTierGetsLogsAfter(t *testing.T) {
 	body, err := readJsonBody[StreamHotTier](response.Body)
 	require.NoErrorf(t, err, "Hot tier response not in correct schema: %s", err)
 
+	// get total byte count of ingested logs
+	size := 0
+	for _, expectedlog := range logs {
+		size = size + int(expectedlog.ByteCount)
+	}
+
 	// ascertain that the ingested all the ingested logs are present in hot tier
-	require.Equalf(t, len(logs), "%d", body.Size, "Total no. of ingested logs is %d but hot tier contains %d logs", len(logs), body.Size)
+	require.Equalf(t, size, "%d", *body.UsedSize, "Total size of ingested logs is %d GiB but hot tier contains %d GiB", size, body.UsedSize)
 
 	disableHotTier(t)
 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
