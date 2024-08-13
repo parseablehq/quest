@@ -2,7 +2,7 @@ apiVersion: k6.io/v1alpha1
 kind: TestRun
 metadata: 
   name: load-test-ing1 
-  spec: 
+spec: 
     parallelism: 1 
     runner: 
       nodeSelector: 
