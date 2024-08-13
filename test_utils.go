@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"os/exec"
 	"strings"
 	"testing"
@@ -32,6 +33,13 @@ import (
 const (
 	sleepDuration = 2 * time.Second
 )
+
+type StreamHotTier struct {
+	Size                string  `json:"size"`
+	UsedSize            *string `json:"used_size,omitempty"`
+	AvailableSize       *string `json:"available_size,omitempty"`
+	OldestDateTimeEntry *string `json:"oldest_date_time_entry,omitempty"`
+}
 
 func flogStreamFields() []string {
 	return []string{
@@ -564,7 +572,13 @@ func checkAPIAccess(t *testing.T, client HTTPClient, stream string, role string)
 }
 
 func activateHotTier(t *testing.T) {
-	req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/hottier", nil)
+	payload := StreamHotTier{
+		Size: fmt.Sprintf("%d", int64(20*math.Pow(1024, 3))), // set hot tier size to be 20 GB
+	}
+	json, _ := json.Marshal(payload)
+
+	req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/hottier", bytes.NewBuffer(json))
+	req.Header.Set("Content-Type", "application/json")
 	response, err := NewGlob.QueryClient.Do(req)
 	body := readAsString(response.Body)
 

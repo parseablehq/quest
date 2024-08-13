@@ -34,13 +34,6 @@ const (
 	events_count = "5"
 )
 
-type StreamHotTier struct {
-	Size                string  `json:"size"`
-	UsedSize            *string `json:"used_size,omitempty"`
-	AvailableSize       *string `json:"available_size,omitempty"`
-	OldestDateTimeEntry *string `json:"oldest_date_time_entry,omitempty"`
-}
-
 func TestSmokeListLogStream(t *testing.T) {
 	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	req, err := NewGlob.QueryClient.NewRequest("GET", "logstream", nil)
