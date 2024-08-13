@@ -592,7 +592,7 @@ func activateHotTier(t *testing.T) {
 }
 
 func disableHotTier(t *testing.T) {
-	req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/hottier", nil)
+	req, _ := NewGlob.QueryClient.NewRequest("DELETE", "logstream/"+NewGlob.Stream+"/hottier", nil)
 	response, err := NewGlob.QueryClient.Do(req)
 	body := readAsString(response.Body)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
