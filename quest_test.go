@@ -409,11 +409,23 @@ func TestSmokeGetRetention(t *testing.T) {
 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
-func TestHotTierGetsLogs(t *testing.T) {
-	// create stream, put hot tier, ingest data for a duration, wait for 2-3 mins to see if all data is available in hot tier
+func TestActivateHotTier(t *testing.T) {
+	activateHotTier(t)
 }
 
+func TestHotTierGetsLogs(t *testing.T) {
+	// create stream, put hot tier, ingest data for a duration, wait for 2-3 mins to see if all data is available in hot tier
+	if NewGlob.IngestorUrl.String() == "" {
+		t.Skip("Skipping in standalone mode")
+	}
+}
+
+// create stream, ingest data for a duration, set hot tier, wait for 2-3 mins to see if all data is available in hot tier
 func TestHotTierGetsLogsAfter(t *testing.T) {
+	if NewGlob.IngestorUrl.String() == "" {
+		t.Skip("Skipping in standalone mode")
+	}
+
 	logs := createAndIngest(t)
 
 	activateHotTier(t)
@@ -443,6 +455,10 @@ func TestHotTierGetsLogsAfter(t *testing.T) {
 
 // create stream, ingest data, query get count, set hot tier, wait for 2-3 mins, query again get count, both counts should match
 func TestHotTierLogCount(t *testing.T) {
+	if NewGlob.IngestorUrl.String() == "" {
+		t.Skip("Skipping in standalone mode")
+	}
+
 	createAndIngest(t)
 	countBefore := QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 50)
 
@@ -455,6 +471,9 @@ func TestHotTierLogCount(t *testing.T) {
 
 func TestOldestHotTierEntry(t *testing.T) {
 	// create stream, ingest data for a duration, call GET /logstream/{logstream}/info - to get the first_event_at field then set hot tier, wait for 2-3 mins, call GET /hottier - to get oldest entry in hot tier then match both
+	if NewGlob.IngestorUrl.String() == "" {
+		t.Skip("Skipping in standalone mode")
+	}
 }
 
 // This test calls all the User API endpoints

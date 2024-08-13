@@ -567,8 +567,14 @@ func activateHotTier(t *testing.T) {
 	req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/hottier", nil)
 	response, err := NewGlob.QueryClient.Do(req)
 	body := readAsString(response.Body)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
-	require.NoErrorf(t, err, "Activating hot tier failed: %s", err)
+
+	if NewGlob.IngestorUrl.String() != "" {
+		require.Equalf(t, 200, response.StatusCode, "Server returned unexpected http code: %s and response: %s", response.Status, body)
+		require.NoErrorf(t, err, "Activating hot tier failed in distributed mode: %s", err)
+	} else {
+		// right now, hot tier is unavailable in standalone so anything other than 200 is fine
+		require.NotEqualf(t, 200, response.StatusCode, "Hot tier has been activated in standalone mode: %s and response: %s", response.Status, body)
+	}
 }
 
 func disableHotTier(t *testing.T) {
