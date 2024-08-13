@@ -441,8 +441,16 @@ func TestHotTierGetsLogsAfter(t *testing.T) {
 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
+// create stream, ingest data, query get count, set hot tier, wait for 2-3 mins, query again get count, both counts should match
 func TestHotTierLogCount(t *testing.T) {
-	// create stream, ingest data, query get count, set hot tier, wait for 2-3 mins, query again get count, both counts should match
+	createAndIngest(t)
+	countBefore := QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 50)
+
+	activateHotTier(t)
+	time.Sleep(60 * 2 * time.Second) // wait for 2 minutes to allow hot tier to sync
+
+	countAfter := QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 50)
+	require.Equalf(t, countBefore, countAfter, "Ingested %s, but hot tier contains only %s", countBefore, countAfter)
 }
 
 func TestOldestHotTierEntry(t *testing.T) {

@@ -245,7 +245,7 @@ func IngestOneEventForStaticSchemaStream_SameFieldsInLog(t *testing.T, client HT
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 }
 
-func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count uint64) {
+func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count uint64) string {
 	// Query last 30 minutes of data only
 	endTime := time.Now().Add(time.Second).Format(time.RFC3339Nano)
 	startTime := time.Now().Add(-30 * time.Minute).Format(time.RFC3339Nano)
@@ -263,6 +263,7 @@ func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count u
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
 	expected := fmt.Sprintf(`[{"count":%d}]`, count)
 	require.Equalf(t, expected, body, "Query count incorrect; Expected %s, Actual %s", expected, body)
+	return body
 }
 
 func QueryLogStreamCount_Historical(t *testing.T, client HTTPClient, stream string, count uint64) {
