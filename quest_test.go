@@ -403,7 +403,10 @@ func TestSmokeGetRetention(t *testing.T) {
 }
 
 func TestActivateHotTier(t *testing.T) {
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	activateHotTier(t)
+	disableHotTier(t)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
 func TestHotTierGetsLogs(t *testing.T) {
@@ -419,31 +422,22 @@ func TestHotTierGetsLogsAfter(t *testing.T) {
 		t.Skip("Skipping in standalone mode")
 	}
 
-	logs := createAndIngest(t)
+	// create a stream without hot tier
+	createAndIngest(t)
+	time.Sleep(2 * 60 * time.Second)
+	prevCount := QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 200)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 
+	// create a second stream with hot tier
+	createAndIngest(t)
 	activateHotTier(t)
-	time.Sleep(60 * 2 * time.Second) // wait for 2 minutes to allow hot tier to sync
+	time.Sleep(2 * 60 * time.Second) // wait 2 minutes for hot tier to sync
 
-	// fetch the logs from hot tier
-	req, _ := NewGlob.QueryClient.NewRequest("GET", "logstream/"+NewGlob.Stream+"/hottier", nil)
-	response, err := NewGlob.QueryClient.Do(req)
-	require.NoErrorf(t, err, "Fetching hot tier stream failed: %s", err)
-
-	// ascertain that they are in expected schema. prolly will be, just to be sure
-	body, err := readJsonBody[StreamHotTier](response.Body)
-	require.NoErrorf(t, err, "Hot tier response not in correct schema: %s", err)
-
-	// get total byte count of ingested logs
-	size := 0
-	for _, expectedlog := range logs {
-		size = size + int(expectedlog.ByteCount)
-	}
-
-	// ascertain that the ingested all the ingested logs are present in hot tier
-	require.Equalf(t, size, "%d", *body.UsedSize, "Total size of ingested logs is %d GiB but hot tier contains %d GiB", size, body.UsedSize)
-
+	htCount := QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 200)
 	disableHotTier(t)
 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+
+	require.Equalf(t, prevCount, htCount, "With hot tier disabled, the count was %s but with it, the count is %s", prevCount, htCount)
 }
 
 // create stream, ingest data, query get count, set hot tier, wait for 2-3 mins, query again get count, both counts should match
@@ -453,12 +447,12 @@ func TestHotTierLogCount(t *testing.T) {
 	}
 
 	createAndIngest(t)
-	countBefore := QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 50)
+	countBefore := QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 200)
 
 	activateHotTier(t)
 	time.Sleep(60 * 2 * time.Second) // wait for 2 minutes to allow hot tier to sync
 
-	countAfter := QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 50)
+	countAfter := QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 200)
 	require.Equalf(t, countBefore, countAfter, "Ingested %s, but hot tier contains only %s", countBefore, countAfter)
 }
 

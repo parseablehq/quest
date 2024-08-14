@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"os/exec"
 	"strings"
 	"testing"
@@ -76,8 +75,9 @@ func Sleep() {
 func CreateStream(t *testing.T, client HTTPClient, stream string) {
 	req, _ := client.NewRequest("PUT", "logstream/"+stream, nil)
 	response, err := client.Do(req)
+	body := readAsString(response.Body)
 	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s with response: %s", response.Status, body)
 }
 
 func CreateStreamWithHeader(t *testing.T, client HTTPClient, stream string, header map[string]string) {
@@ -573,7 +573,7 @@ func checkAPIAccess(t *testing.T, client HTTPClient, stream string, role string)
 
 func activateHotTier(t *testing.T) {
 	payload := StreamHotTier{
-		Size: fmt.Sprintf("%d", int64(20*math.Pow(1024, 3))), // set hot tier size to be 20 GB
+		Size: "20 GiB", // set hot tier size to be 20 GB
 	}
 	json, _ := json.Marshal(payload)
 
