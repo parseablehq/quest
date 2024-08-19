@@ -409,11 +409,22 @@ func TestActivateHotTier(t *testing.T) {
 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
+// create stream, put hot tier, ingest data for a duration, wait for 2-3 mins to see if all data is available in hot tier
 func TestHotTierGetsLogs(t *testing.T) {
-	// create stream, put hot tier, ingest data for a duration, wait for 2-3 mins to see if all data is available in hot tier
 	if NewGlob.IngestorUrl.String() == "" {
 		t.Skip("Skipping in standalone mode")
 	}
+
+	// DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	createAndIngest(t)
+	activateHotTier(t)
+	time.Sleep(2 * 60 * time.Second) // wait 2 minutes for hot tier to sync
+
+	htCount := QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 200)
+	disableHotTier(t)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+
+	require.Equalf(t, htCount, `[{"count":200}]`, "Ingested 200 logs, but hot tier contains %s", htCount)
 }
 
 // create stream, ingest data for a duration, set hot tier, wait for 2-3 mins to see if all data is available in hot tier
@@ -453,15 +464,28 @@ func TestHotTierLogCount(t *testing.T) {
 	time.Sleep(60 * 2 * time.Second) // wait for 2 minutes to allow hot tier to sync
 
 	countAfter := QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 200)
+
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	require.Equalf(t, countBefore, countAfter, "Ingested %s, but hot tier contains only %s", countBefore, countAfter)
 }
 
-func TestOldestHotTierEntry(t *testing.T) {
-	// create stream, ingest data for a duration, call GET /logstream/{logstream}/info - to get the first_event_at field then set hot tier, wait for 2-3 mins, call GET /hottier - to get oldest entry in hot tier then match both
-	if NewGlob.IngestorUrl.String() == "" {
-		t.Skip("Skipping in standalone mode")
-	}
-}
+// create stream, ingest data for a duration, call GET /logstream/{logstream}/info - to get the first_event_at field then set hot tier, wait for 2-3 mins, call GET /hottier - to get oldest entry in hot tier then match both
+// func TestOldestHotTierEntry(t *testing.T) {
+// 	if NewGlob.IngestorUrl.String() == "" {
+// 		t.Skip("Skipping in standalone mode")
+// 	}
+
+// 	createAndIngest(t)
+// 	streamInfo := getStreamInfo(t)
+
+// 	activateHotTier(t)
+// 	time.Sleep(60 * 2 * time.Second)
+
+// 	hottier := getHotTierStatus(t)
+
+// 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+// 	require.Equalf(t, streamInfo.FirstEventAt, hottier.OldestDateTimeEntry, "The first event at in the stream info is %s but the oldest entry in hot tier is %s", *streamInfo.FirstEventAt, *hottier.OldestDateTimeEntry)
+// }
 
 // This test calls all the User API endpoints
 // in a sequence to check if they work as expected.

@@ -40,6 +40,16 @@ type StreamHotTier struct {
 	OldestDateTimeEntry *string `json:"oldest_date_time_entry,omitempty"`
 }
 
+type StreamInfo struct {
+	CreatedAt          string  `json:"created-at"`
+	FirstEventAt       *string `json:"first-event-at"`
+	CacheEnabled       *bool   `json:"cache_enabled"`
+	TimePartition      *string `json:"time_partition"`
+	TimePartitionLimit *string `json:"time_partition_limit"`
+	CustomPartition    *string `json:"custom_partition"`
+	StaticSchemaFlag   *string `json:"static_schema_flag"`
+}
+
 func flogStreamFields() []string {
 	return []string{
 		"p_timestamp",
@@ -591,10 +601,52 @@ func activateHotTier(t *testing.T) {
 	}
 }
 
+func getHotTierStatus(t *testing.T) *StreamHotTier {
+	req, err := NewGlob.QueryClient.NewRequest("GET", "logstream/"+NewGlob.Stream+"/hottier", nil)
+	require.NoError(t, err, "Failed to create request")
+
+	req.Header.Set("Content-Type", "application/json")
+
+	response, err := NewGlob.QueryClient.Do(req)
+	require.NoError(t, err, "Failed to execute GET /hottier")
+	defer response.Body.Close()
+
+	body := readAsString(response.Body)
+
+	require.Equal(t, 200, response.StatusCode, "GET hot tier failed with status code: %d & body: %s", response.StatusCode, body)
+
+	var hotTierStatus StreamHotTier
+	err = json.Unmarshal([]byte(body), &hotTierStatus)
+	require.NoError(t, err, "The response from GET /hottier isn't of expected schema: %s", body)
+
+	return &hotTierStatus
+}
+
 func disableHotTier(t *testing.T) {
 	req, _ := NewGlob.QueryClient.NewRequest("DELETE", "logstream/"+NewGlob.Stream+"/hottier", nil)
 	response, err := NewGlob.QueryClient.Do(req)
 	body := readAsString(response.Body)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
 	require.NoErrorf(t, err, "Disabling hot tier failed: %s", err)
+}
+
+func getStreamInfo(t *testing.T) *StreamInfo {
+	req, err := NewGlob.QueryClient.NewRequest("GET", "logstream/"+NewGlob.Stream+"/info", nil)
+	require.NoError(t, err, "Failed to create request")
+
+	req.Header.Set("Content-Type", "application/json")
+
+	response, err := NewGlob.QueryClient.Do(req)
+	require.NoError(t, err, "Failed to execute GET /logstream/{stream_name}/info")
+	defer response.Body.Close()
+
+	body := readAsString(response.Body)
+
+	require.Equal(t, 200, response.StatusCode, "GET /logstream/{stream_name}/info failed with status code: %d & body: %s", response.StatusCode, body)
+
+	var streamInfo StreamInfo
+	err = json.Unmarshal([]byte(body), &streamInfo)
+	require.NoError(t, err, "The response from GET /info isn't of expected schema: %s", body)
+
+	return &streamInfo
 }
