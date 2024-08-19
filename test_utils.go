@@ -623,6 +623,7 @@ func getHotTierStatus(t *testing.T, shouldFail bool) *StreamHotTier {
 
 	if shouldFail {
 		require.NotEqualf(t, 200, response.StatusCode, "Hot tier was expected to fail but succeeded with body: %s", body)
+		return &StreamHotTier{Size: "0"}
 	} else {
 		require.Equalf(t, 200, response.StatusCode, "GET hot tier failed with status code: %d & body: %s", response.StatusCode, body)
 	}
