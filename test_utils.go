@@ -581,27 +581,35 @@ func checkAPIAccess(t *testing.T, client HTTPClient, stream string, role string)
 	}
 }
 
-func activateHotTier(t *testing.T) {
-	payload := StreamHotTier{
-		Size: "20 GiB", // set hot tier size to be 20 GB
+func activateHotTier(t *testing.T, size string, verify bool) (int, string) {
+	if size == "" {
+		size = "20 GiB" // default hot tier size
 	}
-	json, _ := json.Marshal(payload)
 
-	req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/hottier", bytes.NewBuffer(json))
+	payload := StreamHotTier{
+		Size: size,
+	}
+	jsonPayload, _ := json.Marshal(payload)
+
+	req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/hottier", bytes.NewBuffer(jsonPayload))
 	req.Header.Set("Content-Type", "application/json")
 	response, err := NewGlob.QueryClient.Do(req)
 	body := readAsString(response.Body)
 
-	if NewGlob.IngestorUrl.String() != "" {
-		require.Equalf(t, 200, response.StatusCode, "Server returned unexpected http code: %s and response: %s", response.Status, body)
-		require.NoErrorf(t, err, "Activating hot tier failed in distributed mode: %s", err)
-	} else {
-		// right now, hot tier is unavailable in standalone so anything other than 200 is fine
-		require.NotEqualf(t, 200, response.StatusCode, "Hot tier has been activated in standalone mode: %s and response: %s", response.Status, body)
+	if verify {
+		if NewGlob.IngestorUrl.String() != "" {
+			require.Equalf(t, 200, response.StatusCode, "Server returned unexpected http code: %s and response: %s", response.Status, body)
+			require.NoErrorf(t, err, "Activating hot tier failed in distributed mode: %s", err)
+		} else {
+			// right now, hot tier is unavailable in standalone so anything other than 200 is fine
+			require.NotEqualf(t, 200, response.StatusCode, "Hot tier has been activated in standalone mode: %s and response: %s", response.Status, body)
+		}
 	}
+
+	return response.StatusCode, body
 }
 
-func getHotTierStatus(t *testing.T) *StreamHotTier {
+func getHotTierStatus(t *testing.T, shouldFail bool) *StreamHotTier {
 	req, err := NewGlob.QueryClient.NewRequest("GET", "logstream/"+NewGlob.Stream+"/hottier", nil)
 	require.NoError(t, err, "Failed to create request")
 
@@ -613,7 +621,11 @@ func getHotTierStatus(t *testing.T) *StreamHotTier {
 
 	body := readAsString(response.Body)
 
-	require.Equal(t, 200, response.StatusCode, "GET hot tier failed with status code: %d & body: %s", response.StatusCode, body)
+	if shouldFail {
+		require.NotEqualf(t, 200, response.StatusCode, "Hot tier was expected to fail but succeeded with body: %s", body)
+	} else {
+		require.Equalf(t, 200, response.StatusCode, "GET hot tier failed with status code: %d & body: %s", response.StatusCode, body)
+	}
 
 	var hotTierStatus StreamHotTier
 	err = json.Unmarshal([]byte(body), &hotTierStatus)
@@ -622,11 +634,16 @@ func getHotTierStatus(t *testing.T) *StreamHotTier {
 	return &hotTierStatus
 }
 
-func disableHotTier(t *testing.T) {
+func disableHotTier(t *testing.T, shouldFail bool) {
 	req, _ := NewGlob.QueryClient.NewRequest("DELETE", "logstream/"+NewGlob.Stream+"/hottier", nil)
 	response, err := NewGlob.QueryClient.Do(req)
 	body := readAsString(response.Body)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
+
+	if shouldFail {
+		require.NotEqualf(t, 200, response.StatusCode, "Non-existent hot tier was disabled with response: %s", body)
+	} else {
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
+	}
 	require.NoErrorf(t, err, "Disabling hot tier failed: %s", err)
 }
 
