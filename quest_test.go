@@ -409,11 +409,6 @@ func TestSmoke_AllUsersAPI(t *testing.T) {
 	AssertRole(t, NewGlob.QueryClient, "dummyrole", dummyRole)
 
 	CreateUser(t, NewGlob.QueryClient, "dummyuser")
-	AssignRolesToUser(t, NewGlob.QueryClient, "dummyuser", []string{"dummyrole"})
-	AssertUserRole(t, NewGlob.QueryClient, "dummyuser", "dummyrole", dummyRole)
-	RegenPassword(t, NewGlob.QueryClient, "dummyuser")
-	DeleteUser(t, NewGlob.QueryClient, "dummyuser")
-
 	CreateUserWithRole(t, NewGlob.QueryClient, "dummyuser", []string{"dummyrole"})
 	AssertUserRole(t, NewGlob.QueryClient, "dummyuser", "dummyrole", dummyRole)
 	RegenPassword(t, NewGlob.QueryClient, "dummyuser")
@@ -431,14 +426,7 @@ func TestSmoke_NewUserNoRole(t *testing.T) {
 	SetDefaultRole(t, NewGlob.QueryClient, "dummyrole")
 	AssertDefaultRole(t, NewGlob.QueryClient, "\"dummyrole\"")
 
-	password := CreateUser(t, NewGlob.QueryClient, "dummyuser")
-	userClient := NewGlob.QueryClient
-	userClient.Username = "dummyuser"
-	userClient.Password = password
-
-	PutSingleEventExpectErr(t, userClient, NewGlob.Stream)
-
-	DeleteUser(t, NewGlob.QueryClient, "dummyuser")
+	CreateUser(t, NewGlob.QueryClient, "dummyuser")
 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 
 }

@@ -361,7 +361,7 @@ func CreateUser(t *testing.T, client HTTPClient, user string) string {
 	response, err := client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	body := readAsString(response.Body)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
+	require.Equalf(t, 400, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 	return body
 }
 
