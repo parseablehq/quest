@@ -442,7 +442,6 @@ func TestSmokeRbacBasic(t *testing.T) {
 	checkAPIAccess(t, userClient, NewGlob.Stream, "editor")
 	DeleteUser(t, NewGlob.QueryClient, "dummy")
 	DeleteRole(t, NewGlob.QueryClient, "dummy")
-	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
 func TestSmokeRoles(t *testing.T) {
@@ -452,8 +451,8 @@ func TestSmokeRoles(t *testing.T) {
 		body     string
 	}{
 		{
-			roleName: "editor",
-			body:     RoleEditor,
+			roleName: "ingestor",
+			body:     Roleingestor(NewGlob.Stream),
 		},
 		{
 			roleName: "reader",
@@ -464,8 +463,8 @@ func TestSmokeRoles(t *testing.T) {
 			body:     RoleWriter(NewGlob.Stream),
 		},
 		{
-			roleName: "ingestor",
-			body:     Roleingestor(NewGlob.Stream),
+			roleName: "editor",
+			body:     RoleEditor,
 		},
 	}
 
@@ -484,7 +483,7 @@ func TestSmokeRoles(t *testing.T) {
 			DeleteRole(t, NewGlob.QueryClient, tc.roleName)
 		})
 	}
-	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+
 }
 
 func TestLoadStreamBatchWithK6(t *testing.T) {

@@ -504,7 +504,7 @@ func checkAPIAccess(t *testing.T, client HTTPClient, stream string, role string)
 		req, _ = client.NewRequest("DELETE", "logstream/"+stream, nil)
 		response, err = client.Do(req)
 		require.NoErrorf(t, err, "Request failed: %s", err)
-		require.Equalf(t, 403, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 
 	case "writer":
 		// Check access to non-protected API
