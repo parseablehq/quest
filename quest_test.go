@@ -479,11 +479,13 @@ func TestSmokeRoles(t *testing.T) {
 			queryClient.Username = username
 			queryClient.Password = password
 			if NewGlob.IngestorUrl.String() != "" {
-				ingestClient := NewGlob.IngestorClient
+				ingestClient = NewGlob.IngestorClient
 				ingestClient.Username = username
 				ingestClient.Password = password
 			} else {
-				ingestClient = queryClient
+				ingestClient = NewGlob.QueryClient
+				ingestClient.Username = username
+				ingestClient.Password = password
 			}
 
 			checkAPIAccess(t, queryClient, ingestClient, NewGlob.Stream, tc.roleName)
