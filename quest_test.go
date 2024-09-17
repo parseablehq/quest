@@ -439,7 +439,7 @@ func TestSmokeRbacBasic(t *testing.T) {
 	userClient := NewGlob.QueryClient
 	userClient.Username = "dummy"
 	userClient.Password = RegenPassword(t, NewGlob.QueryClient, "dummy")
-	checkAPIAccess(t, userClient, NewGlob.Stream, "editor")
+	checkAPIAccess(t, userClient, NewGlob.QueryClient, NewGlob.Stream, "editor")
 	DeleteUser(t, NewGlob.QueryClient, "dummy")
 	DeleteRole(t, NewGlob.QueryClient, "dummy")
 }
@@ -474,11 +474,19 @@ func TestSmokeRoles(t *testing.T) {
 			AssertRole(t, NewGlob.QueryClient, tc.roleName, tc.body)
 			username := tc.roleName + "_user"
 			password := CreateUserWithRole(t, NewGlob.QueryClient, username, []string{tc.roleName})
+			var ingestClient HTTPClient
+			queryClient := NewGlob.QueryClient
+			queryClient.Username = username
+			queryClient.Password = password
+			if NewGlob.IngestorUrl.String() != "" {
+				ingestClient := NewGlob.IngestorClient
+				ingestClient.Username = username
+				ingestClient.Password = password
+			} else {
+				ingestClient = queryClient
+			}
 
-			userClient := NewGlob.QueryClient
-			userClient.Username = username
-			userClient.Password = password
-			checkAPIAccess(t, userClient, NewGlob.Stream, tc.roleName)
+			checkAPIAccess(t, queryClient, ingestClient, NewGlob.Stream, tc.roleName)
 			DeleteUser(t, NewGlob.QueryClient, username)
 			DeleteRole(t, NewGlob.QueryClient, tc.roleName)
 		})
