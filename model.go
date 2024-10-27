@@ -437,6 +437,14 @@ const FlogJsonSchema string = `{
 const SchemaBody string = `{
     "fields": [
         {
+            "name": "app_meta",
+            "data_type": "Utf8",
+            "nullable": true,
+            "dict_id": 0,
+            "dict_is_ordered": false,
+            "metadata": {}
+        },
+        {
             "name": "device_id",
             "data_type": "Int64",
             "nullable": true,
@@ -454,6 +462,14 @@ const SchemaBody string = `{
         },
         {
             "name": "level",
+            "data_type": "Utf8",
+            "nullable": true,
+            "dict_id": 0,
+            "dict_is_ordered": false,
+            "metadata": {}
+        },
+        {
+            "name": "location",
             "data_type": "Utf8",
             "nullable": true,
             "dict_id": 0,
@@ -494,7 +510,12 @@ const SchemaBody string = `{
         },
         {
             "name": "p_timestamp",
-            "data_type": "Utf8",
+            "data_type": {
+                "Timestamp": [
+                    "Millisecond",
+                    null
+                ]
+            },
             "nullable": true,
             "dict_id": 0,
             "dict_is_ordered": false,
@@ -509,8 +530,24 @@ const SchemaBody string = `{
             "metadata": {}
         },
         {
+            "name": "request_body",
+            "data_type": "Utf8",
+            "nullable": true,
+            "dict_id": 0,
+            "dict_is_ordered": false,
+            "metadata": {}
+        },
+        {
             "name": "response_time",
             "data_type": "Int64",
+            "nullable": true,
+            "dict_id": 0,
+            "dict_is_ordered": false,
+            "metadata": {}
+        },
+        {
+            "name": "runtime",
+            "data_type": "Utf8",
             "nullable": true,
             "dict_id": 0,
             "dict_is_ordered": false,
@@ -526,7 +563,12 @@ const SchemaBody string = `{
         },
         {
             "name": "source_time",
-            "data_type": "Utf8",
+            "data_type": {
+                "Timestamp": [
+                    "Millisecond",
+                    null
+                ]
+            },
             "nullable": true,
             "dict_id": 0,
             "dict_is_ordered": false,
@@ -542,6 +584,14 @@ const SchemaBody string = `{
         },
         {
             "name": "timezone",
+            "data_type": "Utf8",
+            "nullable": true,
+            "dict_id": 0,
+            "dict_is_ordered": false,
+            "metadata": {}
+        },
+        {
+            "name": "user_agent",
             "data_type": "Utf8",
             "nullable": true,
             "dict_id": 0,
@@ -566,46 +616,6 @@ const SchemaBody string = `{
         },
         {
             "name": "version",
-            "data_type": "Utf8",
-            "nullable": true,
-            "dict_id": 0,
-            "dict_is_ordered": false,
-            "metadata": {}
-        },
-        {
-            "name": "request_body",
-            "data_type": "Utf8",
-            "nullable": true,
-            "dict_id": 0,
-            "dict_is_ordered": false,
-            "metadata": {}
-        },
-        {
-            "name": "runtime",
-            "data_type": "Utf8",
-            "nullable": true,
-            "dict_id": 0,
-            "dict_is_ordered": false,
-            "metadata": {}
-        },
-        {
-            "name": "user_agent",
-            "data_type": "Utf8",
-            "nullable": true,
-            "dict_id": 0,
-            "dict_is_ordered": false,
-            "metadata": {}
-        },
-        {
-            "name": "location",
-            "data_type": "Utf8",
-            "nullable": true,
-            "dict_id": 0,
-            "dict_is_ordered": false,
-            "metadata": {}
-        },
-        {
-            "name": "app_meta",
             "data_type": "Utf8",
             "nullable": true,
             "dict_id": 0,
