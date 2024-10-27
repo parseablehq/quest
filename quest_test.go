@@ -60,6 +60,10 @@ func TestSmokeCreateStream(t *testing.T) {
 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
+func TestSmokeDetectSchema(t *testing.T) {
+	DetectSchema(t, NewGlob.QueryClient, SampleJson, SchemaBody)
+}
+
 func TestSmokeIngestEventsToStream(t *testing.T) {
 	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	if NewGlob.IngestorUrl.String() == "" {
@@ -115,7 +119,7 @@ func TestTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t *testing.T) {
 func TestLoadStream_StaticSchema_EventWithSameFields(t *testing.T) {
 	staticSchemaStream := NewGlob.Stream + "staticschema"
 	staticSchemaFlagHeader := map[string]string{"X-P-Static-Schema-Flag": "true"}
-	CreateStreamWithSchemaBody(t, NewGlob.QueryClient, staticSchemaStream, staticSchemaFlagHeader)
+	CreateStreamWithSchemaBody(t, NewGlob.QueryClient, staticSchemaStream, staticSchemaFlagHeader, SchemaPayload)
 	if NewGlob.IngestorUrl.String() == "" {
 		IngestOneEventForStaticSchemaStream_SameFieldsInLog(t, NewGlob.QueryClient, staticSchemaStream)
 	} else {
@@ -128,7 +132,7 @@ func TestLoadStreamBatchWithK6_StaticSchema(t *testing.T) {
 	if NewGlob.Mode == "load" {
 		staticSchemaStream := NewGlob.Stream + "staticschema"
 		staticSchemaFlagHeader := map[string]string{"X-P-Static-Schema-Flag": "true"}
-		CreateStreamWithSchemaBody(t, NewGlob.QueryClient, staticSchemaStream, staticSchemaFlagHeader)
+		CreateStreamWithSchemaBody(t, NewGlob.QueryClient, staticSchemaStream, staticSchemaFlagHeader, SchemaPayload)
 		if NewGlob.IngestorUrl.String() == "" {
 			cmd := exec.Command("k6",
 				"run",
@@ -176,7 +180,7 @@ func TestLoadStreamBatchWithK6_StaticSchema(t *testing.T) {
 func TestLoadStream_StaticSchema_EventWithNewField(t *testing.T) {
 	staticSchemaStream := NewGlob.Stream + "staticschema"
 	staticSchemaFlagHeader := map[string]string{"X-P-Static-Schema-Flag": "true"}
-	CreateStreamWithSchemaBody(t, NewGlob.QueryClient, staticSchemaStream, staticSchemaFlagHeader)
+	CreateStreamWithSchemaBody(t, NewGlob.QueryClient, staticSchemaStream, staticSchemaFlagHeader, SchemaPayload)
 	if NewGlob.IngestorUrl.String() == "" {
 		IngestOneEventForStaticSchemaStream_NewFieldInLog(t, NewGlob.QueryClient, staticSchemaStream)
 	} else {
