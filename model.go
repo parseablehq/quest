@@ -339,12 +339,7 @@ const FlogJsonSchema string = `{
         },
         {
             "name": "datetime",
-            "data_type": {
-                "Timestamp": [
-                    "Millisecond",
-                    null
-                ]
-            },
+            "data_type": "Utf8",
             "nullable": true,
             "dict_id": 0,
             "dict_is_ordered": false,
