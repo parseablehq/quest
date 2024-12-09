@@ -61,7 +61,7 @@ func TestSmokeCreateStream(t *testing.T) {
 }
 
 func TestSmokeDetectSchema(t *testing.T) {
-	DetectSchema(t, NewGlob.QueryClient, SampleJson, SchemaBody)
+	DetectSchema(t, NewGlob.QueryClient, SampleJson, DetectSchema_SchemaBody)
 }
 
 func TestSmokeIngestEventsToStream(t *testing.T) {
