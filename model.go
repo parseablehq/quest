@@ -163,7 +163,7 @@ const FlogJsonSchema string = `{
     "fields": [
         {
             "name": "bytes",
-            "data_type": "Float64",
+            "data_type": "Int64",
             "nullable": true,
             "dict_id": 0,
             "dict_is_ordered": false,
@@ -248,7 +248,7 @@ const FlogJsonSchema string = `{
         },
         {
             "name": "status",
-            "data_type": "Float64",
+            "data_type": "Int64",
             "nullable": true,
             "dict_id": 0,
             "dict_is_ordered": false,
@@ -469,7 +469,7 @@ const SchemaBody string = `{
         },
         {
             "name": "device_id",
-            "data_type": "Float64",
+            "data_type": "Int64",
             "nullable": true,
             "dict_id": 0,
             "dict_is_ordered": false,
@@ -546,7 +546,7 @@ const SchemaBody string = `{
         },
         {
             "name": "process_id",
-            "data_type": "Float64",
+            "data_type": "Int64",
             "nullable": true,
             "dict_id": 0,
             "dict_is_ordered": false,
@@ -562,7 +562,7 @@ const SchemaBody string = `{
         },
         {
             "name": "response_time",
-            "data_type": "Float64",
+            "data_type": "Int64",
             "nullable": true,
             "dict_id": 0,
             "dict_is_ordered": false,
@@ -599,7 +599,7 @@ const SchemaBody string = `{
         },
         {
             "name": "status_code",
-            "data_type": "Float64",
+            "data_type": "Int64",
             "nullable": true,
             "dict_id": 0,
             "dict_is_ordered": false,
@@ -623,7 +623,7 @@ const SchemaBody string = `{
         },
         {
             "name": "user_id",
-            "data_type": "Float64",
+            "data_type": "Int64",
             "nullable": true,
             "dict_id": 0,
             "dict_is_ordered": false,
