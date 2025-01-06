@@ -141,8 +141,6 @@ const SampleJson string = `
         "location": "ffxkmbwbtxplhgnz",
         "message": "Logging a request",
         "os": "Linux",
-        "p_metadata": "containername=log-generator^namespace=go-apasdp^host=10.116.0.3^source=quest-test^podlabels=app=go-app,pod-template-hash=6c87bc9cc9^containerimage=ghcr.io/parseablehq/quest",
-        "p_tags": "",
         "p_timestamp": "2024-10-27T05:13:26.744Z",
         "process_id": 123,
         "request_body": "ffywhsbtsgvraxjuixlsxtrgotcahkicyxnaermtqmfgzlwbqkxqmonrwojmawsyxsovcjlbkbvjsesfznpukicdtghnvvirtauo",
@@ -187,22 +185,6 @@ const FlogJsonSchema string = `{
         },
         {
             "name": "method",
-            "data_type": "Utf8",
-            "nullable": true,
-            "dict_id": 0,
-            "dict_is_ordered": false,
-            "metadata": {}
-        },
-        {
-            "name": "p_metadata",
-            "data_type": "Utf8",
-            "nullable": true,
-            "dict_id": 0,
-            "dict_is_ordered": false,
-            "metadata": {}
-        },
-        {
-            "name": "p_tags",
             "data_type": "Utf8",
             "nullable": true,
             "dict_id": 0,
@@ -318,22 +300,6 @@ const SchemaBody string = `{
         },
         {
             "name": "os",
-            "data_type": "Utf8",
-            "nullable": true,
-            "dict_id": 0,
-            "dict_is_ordered": false,
-            "metadata": {}
-        },
-        {
-            "name": "p_metadata",
-            "data_type": "Utf8",
-            "nullable": true,
-            "dict_id": 0,
-            "dict_is_ordered": false,
-            "metadata": {}
-        },
-        {
-            "name": "p_tags",
             "data_type": "Utf8",
             "nullable": true,
             "dict_id": 0,
