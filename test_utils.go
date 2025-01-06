@@ -36,8 +36,6 @@ const (
 func flogStreamFields() []string {
 	return []string{
 		"p_timestamp",
-		"p_tags",
-		"p_metadata",
 		"host",
 		"'user-identifier'",
 		"datetime",
