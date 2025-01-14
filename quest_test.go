@@ -70,9 +70,9 @@ func TestSmokeIngestEventsToStream(t *testing.T) {
 		RunFlog(t, NewGlob.QueryClient, NewGlob.Stream)
 	} else {
 		RunFlog(t, NewGlob.IngestorClient, NewGlob.Stream)
-		// Calling Sleep method
-		time.Sleep(60 * time.Second)
 	}
+	// Calling Sleep method
+	time.Sleep(60 * time.Second)
 
 	QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 50)
 	AssertStreamSchema(t, NewGlob.QueryClient, NewGlob.Stream, FlogJsonSchema)
