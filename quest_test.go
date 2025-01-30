@@ -19,6 +19,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 	"testing"
@@ -365,7 +366,8 @@ func TestSmokeSetAlert(t *testing.T) {
 	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	if NewGlob.IngestorUrl.String() == "" {
 		RunFlog(t, NewGlob.QueryClient, NewGlob.Stream)
-		req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/alert", strings.NewReader(AlertBody))
+		body := getAlertBody(NewGlob.Stream)
+		req, _ := NewGlob.QueryClient.NewRequest("POST", "/alerts", strings.NewReader(body))
 		response, err := NewGlob.QueryClient.Do(req)
 		require.NoErrorf(t, err, "Request failed: %s", err)
 		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
@@ -376,15 +378,20 @@ func TestSmokeSetAlert(t *testing.T) {
 
 func TestSmokeGetAlert(t *testing.T) {
 	if NewGlob.IngestorUrl.String() == "" {
-		req, _ := NewGlob.QueryClient.NewRequest("GET", "logstream/"+NewGlob.Stream+"/alert", nil)
+		req, _ := NewGlob.QueryClient.NewRequest("GET", "/alerts", nil)
 		response, err := NewGlob.QueryClient.Do(req)
 		require.NoErrorf(t, err, "Request failed: %s", err)
-		body := readAsString(response.Body)
+		body, _ := io.ReadAll(response.Body)
+		reader1 := bytes.NewReader(body)
+		reader2 := bytes.NewReader(body)
+		expected := readAsString(reader1)
+		id, state := getIdStateFromAlertResponse(reader2)
 		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
-		require.JSONEq(t, AlertBody, body, "Get alert response doesn't match with Alert config returned")
+		res := createAlertResponse(id, state, NewGlob.Stream)
+		require.JSONEq(t, expected, res, "Get alert response doesn't match with Alert config returned")
+		DeleteAlert(t, NewGlob.QueryClient, id)
 	}
 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
-
 }
 
 func TestSmokeSetRetention(t *testing.T) {

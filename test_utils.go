@@ -107,6 +107,13 @@ func DeleteStream(t *testing.T, client HTTPClient, stream string) {
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
 }
 
+func DeleteAlert(t *testing.T, client HTTPClient, alert_id string) {
+	req, _ := client.NewRequest("DELETE", "alerts/"+alert_id, nil)
+	response, err := client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
+}
+
 func RunFlog(t *testing.T, client HTTPClient, stream string) {
 	cmd := exec.Command("flog", "-f", "json", "-n", "50")
 	var out strings.Builder
