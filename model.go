@@ -15,41 +15,11 @@
 
 package main
 
-import "fmt"
-
-const AlertBody string = `{
-  "version": "v1",
-  "alerts": [
-    {
-      "message": "server side error occurred",
-      "name": "Status Alert",
-      "rule": {
-        "config": "status_code != 500",
-        "type": "composite"
-      },
-      "targets": [
-        {
-          "type": "webhook",
-          "endpoint": "https://webhook.site/6b184e08-82c4-46dc-b344-5b85414c2a71",
-          "headers": {},
-          "skip_tls_check": true,
-          "repeat": {
-            "interval": "3m 20s",
-            "times": 5
-          }
-        },
-        {
-          "type": "slack",
-          "endpoint": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
-          "repeat": {
-            "interval": "3m",
-            "times": 2
-          }
-        }
-      ]
-    }
-  ]
-}`
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+)
 
 const SchemaPayload string = `{
   "fields":[
@@ -449,4 +419,127 @@ func RoleReader(stream string) string {
 
 func Roleingestor(stream string) string {
 	return fmt.Sprintf(`[{"privilege": "ingestor", "resource": {"stream": "%s"}}]`, stream)
+}
+
+func getAlertBody(stream string) string {
+	return fmt.Sprintf(`
+    {
+      "severity": "medium",
+      "title": "AlertTitle",
+      "query": "SELECT * FROM %s",
+      "alertType": "threshold",
+      "aggregateConfig": {
+          "aggregateConditions": [
+              {
+                  "agg": "count",
+                  "conditionConfig": {
+                      "conditions": [
+                          {
+                              "column": "status",
+                              "operator": ">=",
+                              "value": "200"
+                          }
+                      ]
+                  },
+                  "column": "status",
+                  "operator": "<=",
+                  "value": 100
+              }
+          ]
+      },
+      "evalType": {
+          "rollingWindow": {
+              "evalStart": "5m",
+              "evalEnd": "now",
+              "evalFrequency": 1
+          }
+      },
+      "targets": [
+          {
+              "type": "webhook",
+              "endpoint": "https://webhook.site/ec627445-d52b-44e9-948d-56671df3581e",
+              "headers": {},
+              "skip_tls_check": true,
+              "repeat": {
+                  "interval": "1m",
+                  "times": 1
+              }
+          }
+      ]
+    }`, stream)
+}
+
+func getIdStateFromAlertResponse(body io.Reader) (string, string) {
+	type AlertConfig struct {
+		Severity        string `json:"severity"`
+		Title           string `json:"title"`
+		Id              string `json:"id"`
+		State           string `json:"state"`
+		Query           string `json:"query"`
+		AlertType       string `json:"alert_type"`
+		AggregateConfig string `json:"aggregate_config"`
+		EvalType        string `json:"eval_type"`
+		Targets         string `json:"targets"`
+	}
+
+	var response []AlertConfig
+	if err := json.NewDecoder(body).Decode(&response); err != nil {
+		fmt.Printf("Error decoding: %v\n", err)
+	}
+
+	alert := response[0]
+	return alert.Id, alert.State
+}
+
+func createAlertResponse(id string, state string, stream string) string {
+	return fmt.Sprintf(`
+  [{
+    "version": "v1",
+    "id": "%s",
+    "state": "%s",
+    "severity": "medium",
+    "title": "AlertTitle",
+    "query": "SELECT * FROM %s",
+    "alertType": "threshold",
+    "aggregateConfig": {
+        "operator": null,
+        "aggregateConditions": [
+            {
+                "agg": "count",
+                "conditionConfig": {
+                    "operator": null,
+                    "conditions": [                  
+                        {
+                            "column": "status",
+                            "operator": ">=",
+                            "value": "200"
+                        }
+                    ]
+                },
+                "column": "status",
+                "operator": "<=",
+                "value": 100
+            }
+        ]
+    },
+    "evalType": {
+        "rollingWindow": {
+            "evalStart": "5m",
+            "evalEnd": "now",
+            "evalFrequency": 1
+        }
+    },
+    "targets": [
+        {
+            "type": "webhook",
+            "endpoint": "https://webhook.site/ec627445-d52b-44e9-948d-56671df3581e",
+            "headers": {},
+            "skip_tls_check": true,
+            "repeat": {
+                "interval": "1m",
+                "times": 1
+            }
+        }
+    ]
+  }]`, id, state, stream)
 }
