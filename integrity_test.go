@@ -88,7 +88,7 @@ func TestIntegrity(t *testing.T) {
 	iterations := 2
 	flogsPerIteration := 100
 
-	parseableSyncWait := 1 * time.Minute // NOTE: This needs to be in sync with Parseable's.
+	parseableSyncWait := 3 * time.Minute // NOTE: This needs to be in sync with Parseable's.
 
 	// - Generate log files using `flog`
 	// - Load them into `Flog` structs
