@@ -212,9 +212,11 @@ func downloadParquetFiles(stream string, config MinIoConfig) []string {
 		f.Close()
 	}
 
-	// Reverse the filenames, because we want latest files first.
-	for i, j := 0, len(downloadedFileNames)-1; i < j; i, j = i+1, j-1 {
-		downloadedFileNames[i], downloadedFileNames[j] = downloadedFileNames[j], downloadedFileNames[i]
+	// Reverse the filenames, because we want latest files first (only if there are multiple files)
+	if len(downloadedFileNames) > 1 {
+		for i, j := 0, len(downloadedFileNames)-1; i < j; i, j = i+1, j-1 {
+			downloadedFileNames[i], downloadedFileNames[j] = downloadedFileNames[j], downloadedFileNames[i]
+		}
 	}
 
 	slog.Info("downloaded files", "paths", downloadedFileNames)
