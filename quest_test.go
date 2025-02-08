@@ -357,7 +357,7 @@ func TestSmokeLoad_TimeAndCustomPartition_WithK6Stream(t *testing.T) {
 		cmd.Run()
 		cmd.Output()
 	}
-	time.Sleep(120 * time.Second)
+	time.Sleep(180 * time.Second)
 	QueryLogStreamCount_Historical(t, NewGlob.QueryClient, custom_partition_stream, 20000)
 	DeleteStream(t, NewGlob.QueryClient, custom_partition_stream)
 }
