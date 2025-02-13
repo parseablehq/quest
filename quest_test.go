@@ -73,7 +73,7 @@ func TestSmokeIngestEventsToStream(t *testing.T) {
 		RunFlog(t, NewGlob.IngestorClient, NewGlob.Stream)
 	}
 	// Calling Sleep method
-	time.Sleep(60 * time.Second)
+	time.Sleep(120 * time.Second)
 
 	QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 50)
 	AssertStreamSchema(t, NewGlob.QueryClient, NewGlob.Stream, FlogJsonSchema)
@@ -88,7 +88,6 @@ func TestTimePartition_TimeStampMismatch(t *testing.T) {
 		IngestOneEventWithTimePartition_TimeStampMismatch(t, NewGlob.QueryClient, historicalStream)
 	} else {
 		IngestOneEventWithTimePartition_TimeStampMismatch(t, NewGlob.IngestorClient, historicalStream)
-
 	}
 	DeleteStream(t, NewGlob.QueryClient, historicalStream)
 }
@@ -189,6 +188,7 @@ func TestLoadStream_StaticSchema_EventWithNewField(t *testing.T) {
 	}
 	DeleteStream(t, NewGlob.QueryClient, staticSchemaStream)
 }
+
 func TestSmokeQueryTwoStreams(t *testing.T) {
 	stream1 := NewGlob.Stream + "1"
 	stream2 := NewGlob.Stream + "2"
@@ -202,7 +202,7 @@ func TestSmokeQueryTwoStreams(t *testing.T) {
 		RunFlog(t, NewGlob.IngestorClient, stream2)
 
 	}
-	time.Sleep(60 * time.Second)
+	time.Sleep(120 * time.Second)
 	QueryTwoLogStreamCount(t, NewGlob.QueryClient, stream1, stream2, 100)
 	DeleteStream(t, NewGlob.QueryClient, stream1)
 	DeleteStream(t, NewGlob.QueryClient, stream2)
@@ -214,9 +214,8 @@ func TestSmokeRunQueries(t *testing.T) {
 		RunFlog(t, NewGlob.QueryClient, NewGlob.Stream)
 	} else {
 		RunFlog(t, NewGlob.IngestorClient, NewGlob.Stream)
-
 	}
-	time.Sleep(60 * time.Second)
+	time.Sleep(120 * time.Second)
 	// test count
 	QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 50)
 	// test yeild all values
@@ -373,7 +372,6 @@ func TestSmokeSetAlert(t *testing.T) {
 		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 
 	}
-
 }
 
 func TestSmokeGetAlert(t *testing.T) {
@@ -400,7 +398,6 @@ func TestSmokeSetRetention(t *testing.T) {
 	response, err := NewGlob.QueryClient.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
-
 }
 
 func TestSmokeGetRetention(t *testing.T) {
@@ -439,7 +436,6 @@ func TestSmoke_NewUserNoRole(t *testing.T) {
 
 	CreateUser(t, NewGlob.QueryClient, "dummyuser")
 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
-
 }
 
 func TestSmokeRbacBasic(t *testing.T) {
@@ -504,7 +500,6 @@ func TestSmokeRoles(t *testing.T) {
 			DeleteRole(t, NewGlob.QueryClient, tc.roleName)
 		})
 	}
-
 }
 
 func TestLoadStreamBatchWithK6(t *testing.T) {
