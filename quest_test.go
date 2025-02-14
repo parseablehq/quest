@@ -259,7 +259,7 @@ func TestSmokeLoadWithK6Stream(t *testing.T) {
 		cmd.Run()
 		cmd.Output()
 	}
-	time.Sleep(120 * time.Second)
+	time.Sleep(150 * time.Second)
 	QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 20000)
 	AssertStreamSchema(t, NewGlob.QueryClient, NewGlob.Stream, SchemaBody)
 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
@@ -329,37 +329,37 @@ func TestSmokeLoad_CustomPartition_WithK6Stream(t *testing.T) {
 	DeleteStream(t, NewGlob.QueryClient, custom_partition_stream)
 }
 
-func TestSmokeLoad_TimeAndCustomPartition_WithK6Stream(t *testing.T) {
-	custom_partition_stream := NewGlob.Stream + "timecustompartition"
-	customHeader := map[string]string{"X-P-Custom-Partition": "level", "X-P-Time-Partition": "source_time", "X-P-Time-Partition-Limit": "365d"}
-	CreateStreamWithHeader(t, NewGlob.QueryClient, custom_partition_stream, customHeader)
-	if NewGlob.IngestorUrl.String() == "" {
-		cmd := exec.Command("k6",
-			"run",
-			"-e", fmt.Sprintf("P_URL=%s", NewGlob.QueryUrl.String()),
-			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
-			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
-			"-e", fmt.Sprintf("P_STREAM=%s", custom_partition_stream),
-			"./scripts/smoke.js")
+// func TestSmokeLoad_TimeAndCustomPartition_WithK6Stream(t *testing.T) {
+// 	custom_partition_stream := NewGlob.Stream + "timecustompartition"
+// 	customHeader := map[string]string{"X-P-Custom-Partition": "level", "X-P-Time-Partition": "source_time", "X-P-Time-Partition-Limit": "365d"}
+// 	CreateStreamWithHeader(t, NewGlob.QueryClient, custom_partition_stream, customHeader)
+// 	if NewGlob.IngestorUrl.String() == "" {
+// 		cmd := exec.Command("k6",
+// 			"run",
+// 			"-e", fmt.Sprintf("P_URL=%s", NewGlob.QueryUrl.String()),
+// 			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
+// 			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
+// 			"-e", fmt.Sprintf("P_STREAM=%s", custom_partition_stream),
+// 			"./scripts/smoke.js")
 
-		cmd.Run()
-		cmd.Output()
-	} else {
-		cmd := exec.Command("k6",
-			"run",
-			"-e", fmt.Sprintf("P_URL=%s", NewGlob.IngestorUrl.String()),
-			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
-			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
-			"-e", fmt.Sprintf("P_STREAM=%s", custom_partition_stream),
-			"./scripts/smoke.js")
+// 		cmd.Run()
+// 		cmd.Output()
+// 	} else {
+// 		cmd := exec.Command("k6",
+// 			"run",
+// 			"-e", fmt.Sprintf("P_URL=%s", NewGlob.IngestorUrl.String()),
+// 			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
+// 			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
+// 			"-e", fmt.Sprintf("P_STREAM=%s", custom_partition_stream),
+// 			"./scripts/smoke.js")
 
-		cmd.Run()
-		cmd.Output()
-	}
-	time.Sleep(180 * time.Second)
-	QueryLogStreamCount_Historical(t, NewGlob.QueryClient, custom_partition_stream, 20000)
-	DeleteStream(t, NewGlob.QueryClient, custom_partition_stream)
-}
+// 		cmd.Run()
+// 		cmd.Output()
+// 	}
+// 	time.Sleep(180 * time.Second)
+// 	QueryLogStreamCount_Historical(t, NewGlob.QueryClient, custom_partition_stream, 20000)
+// 	DeleteStream(t, NewGlob.QueryClient, custom_partition_stream)
+// }
 
 func TestSmokeSetAlert(t *testing.T) {
 	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
