@@ -80,6 +80,15 @@ func CreateStreamWithHeader(t *testing.T, client HTTPClient, stream string, head
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
 }
 
+func CreateStreamWithCustompartitionError(t *testing.T, client HTTPClient, stream string, header map[string]string) {
+	req, _ := client.NewRequest("PUT", "logstream/"+stream, nil)
+	for k, v := range header {
+		req.Header.Add(k, v)
+	}
+	response, _ := client.Do(req)
+	require.Equalf(t, 500, response.StatusCode, "Server returned http code: %s", response.Status)
+}
+
 func CreateStreamWithSchemaBody(t *testing.T, client HTTPClient, stream string, header map[string]string, schema_payload string) {
 
 	req, _ := client.NewRequest("PUT", "logstream/"+stream, bytes.NewBufferString(schema_payload))

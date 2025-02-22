@@ -189,6 +189,19 @@ func TestLoadStream_StaticSchema_EventWithNewField(t *testing.T) {
 	DeleteStream(t, NewGlob.QueryClient, staticSchemaStream)
 }
 
+func TestCreateStream_WithCustomPartition_Success(t *testing.T) {
+	customPartitionStream := NewGlob.Stream + "custompartition"
+	customHeader := map[string]string{"X-P-Custom-Partition": "level"}
+	CreateStreamWithHeader(t, NewGlob.QueryClient, customPartitionStream, customHeader)
+	DeleteStream(t, NewGlob.QueryClient, customPartitionStream)
+}
+
+func TestCreateStream_WithCustomPartition_Error(t *testing.T) {
+	customPartitionStream := NewGlob.Stream + "custompartition"
+	customHeader := map[string]string{"X-P-Custom-Partition": "level,os"}
+	CreateStreamWithCustompartitionError(t, NewGlob.QueryClient, customPartitionStream, customHeader)
+}
+
 func TestSmokeQueryTwoStreams(t *testing.T) {
 	stream1 := NewGlob.Stream + "1"
 	stream2 := NewGlob.Stream + "2"
@@ -600,7 +613,7 @@ func TestLoadHistoricalStreamBatchWithK6(t *testing.T) {
 
 func TestLoadStreamBatchWithCustomPartitionWithK6(t *testing.T) {
 	customPartitionStream := NewGlob.Stream + "custompartition"
-	customHeader := map[string]string{"X-P-Custom-Partition": "level,os"}
+	customHeader := map[string]string{"X-P-Custom-Partition": "level"}
 	CreateStreamWithHeader(t, NewGlob.QueryClient, customPartitionStream, customHeader)
 	if NewGlob.IngestorUrl.String() == "" {
 		cmd := exec.Command("k6",
@@ -645,10 +658,10 @@ func TestLoadStreamBatchWithCustomPartitionWithK6(t *testing.T) {
 	DeleteStream(t, NewGlob.QueryClient, customPartitionStream)
 }
 
-func TestLoadStreamBatchWithTimeAndCustomPartitionWithK6(t *testing.T) {
+func TestLoadStreamBatchWithTimePartitionWithK6(t *testing.T) {
 	if NewGlob.Mode == "load" {
-		customPartitionStream := NewGlob.Stream + "timeandcustompartition"
-		customHeader := map[string]string{"X-P-Custom-Partition": "level,os", "X-P-Time-Partition": "source_time"}
+		customPartitionStream := NewGlob.Stream + "timepartition"
+		customHeader := map[string]string{"X-P-Time-Partition": "source_time"}
 		CreateStreamWithHeader(t, NewGlob.QueryClient, customPartitionStream, customHeader)
 		if NewGlob.IngestorUrl.String() == "" {
 			cmd := exec.Command("k6",
