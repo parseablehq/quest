@@ -111,7 +111,9 @@ const SampleJson string = `
         "location": "ffxkmbwbtxplhgnz",
         "message": "Logging a request",
         "os": "Linux",
+        "p_src_ip": "127.0.0.1",
         "p_timestamp": "2024-10-27T05:13:26.744Z",
+        "p_user_agent": "Mozilla/5.0",
         "process_id": 123,
         "request_body": "ffywhsbtsgvraxjuixlsxtrgotcahkicyxnaermtqmfgzlwbqkxqmonrwojmawsyxsovcjlbkbvjsesfznpukicdtghnvvirtauo",
         "response_time": 100,
@@ -162,6 +164,14 @@ const FlogJsonSchema string = `{
             "metadata": {}
         },
         {
+            "name": "p_src_ip",
+            "data_type": "Utf8",
+            "nullable": true,
+            "dict_id": 0,
+            "dict_is_ordered": false,
+            "metadata": {}
+        },
+        {
             "name": "p_timestamp",
             "data_type": {
                 "Timestamp": [
@@ -169,6 +179,14 @@ const FlogJsonSchema string = `{
                     null
                 ]
             },
+            "nullable": true,
+            "dict_id": 0,
+            "dict_is_ordered": false,
+            "metadata": {}
+        },
+        {
+            "name": "p_user_agent",
+            "data_type": "Utf8",
             "nullable": true,
             "dict_id": 0,
             "dict_is_ordered": false,
@@ -277,6 +295,14 @@ const SchemaBody string = `{
             "metadata": {}
         },
         {
+            "name": "p_src_ip",
+            "data_type": "Utf8",
+            "nullable": true,
+            "dict_id": 0,
+            "dict_is_ordered": false,
+            "metadata": {}
+        },
+        {
             "name": "p_timestamp",
             "data_type": {
                 "Timestamp": [
@@ -284,6 +310,14 @@ const SchemaBody string = `{
                     null
                 ]
             },
+            "nullable": true,
+            "dict_id": 0,
+            "dict_is_ordered": false,
+            "metadata": {}
+        },
+        {
+            "name": "p_user_agent",
+            "data_type": "Utf8",
             "nullable": true,
             "dict_id": 0,
             "dict_is_ordered": false,
