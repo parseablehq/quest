@@ -110,6 +110,8 @@ const SampleJson string = `
         "level": "warn",
         "location": "ffxkmbwbtxplhgnz",
         "message": "Logging a request",
+        "meta-source": "quest-smoke-test",
+        "meta-test": "Fixed-Logs",
         "os": "Linux",
         "p_src_ip": "127.0.0.1",
         "p_timestamp": "2024-10-27T05:13:26.744Z",
@@ -280,6 +282,22 @@ const SchemaBody string = `{
         },
         {
             "name": "message",
+            "data_type": "Utf8",
+            "nullable": true,
+            "dict_id": 0,
+            "dict_is_ordered": false,
+            "metadata": {}
+        },
+        {
+            "name": "meta-source",
+            "data_type": "Utf8",
+            "nullable": true,
+            "dict_id": 0,
+            "dict_is_ordered": false,
+            "metadata": {}
+        },
+        {
+            "name": "meta-test",
             "data_type": "Utf8",
             "nullable": true,
             "dict_id": 0,
