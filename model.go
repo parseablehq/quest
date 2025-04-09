@@ -478,14 +478,15 @@ func getAlertBody(stream string) string {
     {
       "severity": "medium",
       "title": "AlertTitle",
-      "query": "SELECT * FROM %s",
+      "stream": "%s",
       "alertType": "threshold",
-      "aggregateConfig": {
-          "aggregateConditions": [
+      "aggregates": {
+          "operator": null,
+          "aggregateConfig": [
               {
-                  "agg": "count",
-                  "conditionConfig": {
-                      "conditions": [
+                  "aggregateFunction": "count",
+                  "conditions": {
+                      "conditionConfig": [
                           {
                               "column": "status",
                               "operator": ">=",
@@ -499,7 +500,7 @@ func getAlertBody(stream string) string {
               }
           ]
       },
-      "evalType": {
+      "evalConfig": {
           "rollingWindow": {
               "evalStart": "5m",
               "evalEnd": "now",
@@ -511,7 +512,7 @@ func getAlertBody(stream string) string {
               "type": "webhook",
               "endpoint": "https://webhook.site/ec627445-d52b-44e9-948d-56671df3581e",
               "headers": {},
-              "skip_tls_check": true,
+              "skipTlsCheck": true,
               "repeat": {
                   "interval": "1m",
                   "times": 1
@@ -523,15 +524,15 @@ func getAlertBody(stream string) string {
 
 func getIdStateFromAlertResponse(body io.Reader) (string, string) {
 	type AlertConfig struct {
-		Severity        string `json:"severity"`
-		Title           string `json:"title"`
-		Id              string `json:"id"`
-		State           string `json:"state"`
-		Query           string `json:"query"`
-		AlertType       string `json:"alert_type"`
-		AggregateConfig string `json:"aggregate_config"`
-		EvalType        string `json:"eval_type"`
-		Targets         string `json:"targets"`
+		Severity   string `json:"severity"`
+		Title      string `json:"title"`
+		Id         string `json:"id"`
+		State      string `json:"state"`
+		Stream     string `json:"stream"`
+		AlertType  string `json:"alertType"`
+		Aggregates string `json:"aggregates"`
+		EvalConfig string `json:"evalConfig"`
+		Targets    string `json:"targets"`
 	}
 
 	var response []AlertConfig
@@ -551,16 +552,16 @@ func createAlertResponse(id string, state string, stream string) string {
     "state": "%s",
     "severity": "medium",
     "title": "AlertTitle",
-    "query": "SELECT * FROM %s",
+    "stream": "%s",
     "alertType": "threshold",
-    "aggregateConfig": {
+    "aggregates": {
         "operator": null,
-        "aggregateConditions": [
+        "aggregateConfig": [
             {
-                "agg": "count",
-                "conditionConfig": {
+                "aggregateFunction": "count",
+                "conditions": {
                     "operator": null,
-                    "conditions": [                  
+                    "conditionConfig": [                  
                         {
                             "column": "status",
                             "operator": ">=",
@@ -568,13 +569,14 @@ func createAlertResponse(id string, state string, stream string) string {
                         }
                     ]
                 },
+                "groupBy": null,
                 "column": "status",
                 "operator": "<=",
                 "value": 100
             }
         ]
     },
-    "evalType": {
+    "evalConfig": {
         "rollingWindow": {
             "evalStart": "5m",
             "evalEnd": "now",
@@ -586,7 +588,7 @@ func createAlertResponse(id string, state string, stream string) string {
             "type": "webhook",
             "endpoint": "https://webhook.site/ec627445-d52b-44e9-948d-56671df3581e",
             "headers": {},
-            "skip_tls_check": true,
+            "skipTlsCheck": true,
             "repeat": {
                 "interval": "1m",
                 "times": 1
