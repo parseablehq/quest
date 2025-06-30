@@ -374,13 +374,31 @@ func TestSmokeLoad_CustomPartition_WithK6Stream(t *testing.T) {
 // 	DeleteStream(t, NewGlob.QueryClient, custom_partition_stream)
 // }
 
+func TestSmokeSetTarget(t *testing.T) {
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	if NewGlob.IngestorUrl.String() == "" {
+		// RunFlog(t, NewGlob.QueryClient, NewGlob.Stream)
+		body := getTargetBody()
+		req, _ := NewGlob.QueryClient.NewRequest("POST", "/targets", strings.NewReader(body))
+		response, err := NewGlob.QueryClient.Do(req)
+		require.NoErrorf(t, err, "Request failed: %s", err)
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+	}
+}
+
 func TestSmokeSetAlert(t *testing.T) {
 	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	if NewGlob.IngestorUrl.String() == "" {
 		RunFlog(t, NewGlob.QueryClient, NewGlob.Stream)
-		body := getAlertBody(NewGlob.Stream)
-		req, _ := NewGlob.QueryClient.NewRequest("POST", "/alerts", strings.NewReader(body))
+		req, _ := NewGlob.QueryClient.NewRequest("GET", "/targets", nil)
 		response, err := NewGlob.QueryClient.Do(req)
+		require.NoErrorf(t, err, "Request failed: %s", err)
+		bodyTargets, _ := io.ReadAll(response.Body)
+		reader1 := bytes.NewReader(bodyTargets)
+		targetId := getIdFromTargetResponse(reader1)
+		body := getAlertBody(NewGlob.Stream, targetId)
+		req, _ = NewGlob.QueryClient.NewRequest("POST", "/alerts", strings.NewReader(body))
+		response, err = NewGlob.QueryClient.Do(req)
 		require.NoErrorf(t, err, "Request failed: %s", err)
 		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 
@@ -389,18 +407,25 @@ func TestSmokeSetAlert(t *testing.T) {
 
 func TestSmokeGetAlert(t *testing.T) {
 	if NewGlob.IngestorUrl.String() == "" {
-		req, _ := NewGlob.QueryClient.NewRequest("GET", "/alerts", nil)
+		req, _ := NewGlob.QueryClient.NewRequest("GET", "/targets", nil)
 		response, err := NewGlob.QueryClient.Do(req)
 		require.NoErrorf(t, err, "Request failed: %s", err)
+		bodyTargets, _ := io.ReadAll(response.Body)
+		reader1 := bytes.NewReader(bodyTargets)
+		targetId := getIdFromTargetResponse(reader1)
+		req, _ = NewGlob.QueryClient.NewRequest("GET", "/alerts", nil)
+		response, err = NewGlob.QueryClient.Do(req)
+		require.NoErrorf(t, err, "Request failed: %s", err)
 		body, _ := io.ReadAll(response.Body)
-		reader1 := bytes.NewReader(body)
+		reader1 = bytes.NewReader(body)
 		reader2 := bytes.NewReader(body)
 		expected := readAsString(reader1)
 		id, state := getIdStateFromAlertResponse(reader2)
 		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
-		res := createAlertResponse(id, state, NewGlob.Stream)
+		res := createAlertResponse(id, state, NewGlob.Stream, targetId)
 		require.JSONEq(t, expected, res, "Get alert response doesn't match with Alert config returned")
 		DeleteAlert(t, NewGlob.QueryClient, id)
+		DeleteTarget(t, NewGlob.QueryClient, targetId)
 	}
 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
