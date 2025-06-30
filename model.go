@@ -473,7 +473,39 @@ func Roleingestor(stream string) string {
 	return fmt.Sprintf(`[{"privilege": "ingestor", "resource": {"stream": "%s"}}]`, stream)
 }
 
-func getAlertBody(stream string) string {
+func getTargetBody() string {
+	return `          {
+              "type": "webhook",
+              "endpoint": "https://webhook.site/ec627445-d52b-44e9-948d-56671df3581e",
+              "headers": {},
+              "skipTlsCheck": true,
+              "repeat": {
+                  "interval": "1m",
+                  "times": 1
+              }
+          }
+`
+}
+
+func getIdFromTargetResponse(body io.Reader) string {
+	type TargetConf struct {
+		Type         string `json:"type"`
+		Endpoint     string `json:"endpoint"`
+		Headers      string `json:"headers"`
+		SkipTlsCheck string `json:"skipTlsCheck"`
+		Repeat       string `json:"repeat"`
+		Id           string `json:"id"`
+	}
+	var response []TargetConf
+	if err := json.NewDecoder(body).Decode(&response); err != nil {
+		fmt.Printf("Error decoding: %v\n", err)
+	}
+
+	target := response[0]
+	return target.Id
+}
+
+func getAlertBody(stream string, targetId string) string {
 	return fmt.Sprintf(`
     {
       "severity": "medium",
@@ -508,18 +540,9 @@ func getAlertBody(stream string) string {
           }
       },
       "targets": [
-          {
-              "type": "webhook",
-              "endpoint": "https://webhook.site/ec627445-d52b-44e9-948d-56671df3581e",
-              "headers": {},
-              "skipTlsCheck": true,
-              "repeat": {
-                  "interval": "1m",
-                  "times": 1
-              }
-          }
+          "%s"
       ]
-    }`, stream)
+    }`, stream, targetId)
 }
 
 func getIdStateFromAlertResponse(body io.Reader) (string, string) {
@@ -544,7 +567,7 @@ func getIdStateFromAlertResponse(body io.Reader) (string, string) {
 	return alert.Id, alert.State
 }
 
-func createAlertResponse(id string, state string, stream string) string {
+func createAlertResponse(id string, state string, stream string, targetId string) string {
 	return fmt.Sprintf(`
   [{
     "version": "v1",
@@ -584,16 +607,7 @@ func createAlertResponse(id string, state string, stream string) string {
         }
     },
     "targets": [
-        {
-            "type": "webhook",
-            "endpoint": "https://webhook.site/ec627445-d52b-44e9-948d-56671df3581e",
-            "headers": {},
-            "skipTlsCheck": true,
-            "repeat": {
-                "interval": "1m",
-                "times": 1
-            }
-        }
+        "%s"
     ]
-  }]`, id, state, stream)
+  }]`, id, state, stream, targetId)
 }
