@@ -475,6 +475,7 @@ func Roleingestor(stream string) string {
 
 func getTargetBody() string {
 	return `          {
+                "name":"targetName",
               "type": "webhook",
               "endpoint": "https://webhook.site/ec627445-d52b-44e9-948d-56671df3581e",
               "headers": {},
@@ -489,12 +490,8 @@ func getTargetBody() string {
 
 func getIdFromTargetResponse(body io.Reader) string {
 	type TargetConf struct {
-		Type         string `json:"type"`
-		Endpoint     string `json:"endpoint"`
-		Headers      string `json:"headers"`
-		SkipTlsCheck string `json:"skipTlsCheck"`
-		Repeat       string `json:"repeat"`
-		Id           string `json:"id"`
+		Type string `json:"type"`
+		Id   string `json:"id"`
 	}
 	var response []TargetConf
 	if err := json.NewDecoder(body).Decode(&response); err != nil {
@@ -520,14 +517,14 @@ func getAlertBody(stream string, targetId string) string {
                   "conditions": {
                       "conditionConfig": [
                           {
-                              "column": "status",
-                              "operator": ">=",
-                              "value": "200"
+                              "column": "level",
+                              "operator": "=",
+                              "value": "info"
                           }
                       ]
                   },
-                  "column": "status",
-                  "operator": "<=",
+                  "column": "level",
+                  "operator": "=",
                   "value": 100
               }
           ]
@@ -586,15 +583,15 @@ func createAlertResponse(id string, state string, stream string, targetId string
                     "operator": null,
                     "conditionConfig": [                  
                         {
-                            "column": "status",
-                            "operator": ">=",
-                            "value": "200"
+                            "column": "level",
+                            "operator": "=",
+                            "value": "info"
                         }
                     ]
                 },
                 "groupBy": null,
-                "column": "status",
-                "operator": "<=",
+                "column": "level",
+                "operator": "=",
                 "value": 100
             }
         ]
