@@ -384,19 +384,42 @@ func TestSmokeSetTarget(t *testing.T) {
 }
 
 func TestSmokeSetAlert(t *testing.T) {
-	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	stream := NewGlob.Stream + "alert_testing"
+	CreateStream(t, NewGlob.QueryClient, stream)
 	if NewGlob.IngestorUrl.String() == "" {
-		RunFlog(t, NewGlob.QueryClient, NewGlob.Stream)
+		cmd := exec.Command("k6",
+			"run",
+			"-e", fmt.Sprintf("P_URL=%s", NewGlob.QueryUrl.String()),
+			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
+			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
+			"-e", fmt.Sprintf("P_STREAM=%s", stream),
+			"./scripts/smoke.js")
+
+		cmd.Run()
+		cmd.Output()
 	} else {
-		RunFlog(t, NewGlob.IngestorClient, NewGlob.Stream)
+		cmd := exec.Command("k6",
+			"run",
+			"-e", fmt.Sprintf("P_URL=%s", NewGlob.IngestorUrl.String()),
+			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
+			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
+			"-e", fmt.Sprintf("P_STREAM=%s", stream),
+			"./scripts/smoke.js")
+
+		cmd.Run()
+		cmd.Output()
 	}
+	time.Sleep(120 * time.Second)
+	schemaReq, _ := NewGlob.QueryClient.NewRequest("GET", "/logstream/"+stream+"/schema", nil)
+	schemaResponse, _ := NewGlob.QueryClient.Do(schemaReq)
+	require.Equalf(t, 200, schemaResponse.StatusCode, "Server returned http code: %s and response: %s", schemaResponse.Status, readAsString(schemaResponse.Body))
 	req, _ := NewGlob.QueryClient.NewRequest("GET", "/targets", nil)
 	response, err := NewGlob.QueryClient.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	bodyTargets, _ := io.ReadAll(response.Body)
 	reader1 := bytes.NewReader(bodyTargets)
 	targetId := getIdFromTargetResponse(reader1)
-	body := getAlertBody(NewGlob.Stream, targetId)
+	body := getAlertBody(stream, targetId)
 	req, _ = NewGlob.QueryClient.NewRequest("POST", "/alerts", strings.NewReader(body))
 	response, err = NewGlob.QueryClient.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
@@ -404,6 +427,7 @@ func TestSmokeSetAlert(t *testing.T) {
 }
 
 func TestSmokeGetAlert(t *testing.T) {
+	stream := NewGlob.Stream + "alert_testing"
 	req, _ := NewGlob.QueryClient.NewRequest("GET", "/targets", nil)
 	response, err := NewGlob.QueryClient.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
@@ -419,11 +443,11 @@ func TestSmokeGetAlert(t *testing.T) {
 	expected := readAsString(reader1)
 	id, state := getIdStateFromAlertResponse(reader2)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
-	res := createAlertResponse(id, state, NewGlob.Stream, targetId)
+	res := createAlertResponse(id, state, stream, targetId)
 	require.JSONEq(t, expected, res, "Get alert response doesn't match with Alert config returned")
 	DeleteAlert(t, NewGlob.QueryClient, id)
 	DeleteTarget(t, NewGlob.QueryClient, targetId)
-	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	DeleteStream(t, NewGlob.QueryClient, stream)
 }
 
 func TestSmokeSetRetention(t *testing.T) {
