@@ -466,7 +466,7 @@ func RoleWriter(stream string) string {
 }
 
 func RoleReader(stream string) string {
-	return fmt.Sprintf(`[{"privilege": "reader", "resource": {"stream": "%s", "tag": null}}]`, stream)
+	return fmt.Sprintf(`[{"privilege": "reader", "resource": {"stream": "%s"}}]`, stream)
 }
 
 func Roleingestor(stream string) string {
