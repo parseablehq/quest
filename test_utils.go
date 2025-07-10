@@ -340,7 +340,7 @@ func AssertUserRole(t *testing.T, client HTTPClient, user string, roleName, role
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	userRoleBody := readAsString(response.Body)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, userRoleBody)
-	expectedRoleBody := fmt.Sprintf(`{"%s":%s}`, roleName, roleBody)
+	expectedRoleBody := fmt.Sprintf(`{"roles":{"%s":%s}, "group_roles": {}}`, roleName, roleBody)
 	require.JSONEq(t, userRoleBody, expectedRoleBody, "Get user role response doesn't match with expected role")
 }
 
