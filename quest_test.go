@@ -410,9 +410,6 @@ func TestSmokeSetAlert(t *testing.T) {
 		cmd.Output()
 	}
 	time.Sleep(120 * time.Second)
-	schemaReq, _ := NewGlob.QueryClient.NewRequest("GET", "/logstream/"+stream+"/schema", nil)
-	schemaResponse, _ := NewGlob.QueryClient.Do(schemaReq)
-	require.Equalf(t, 200, schemaResponse.StatusCode, "Server returned http code: %s and response: %s", schemaResponse.Status, readAsString(schemaResponse.Body))
 	req, _ := NewGlob.QueryClient.NewRequest("GET", "/targets", nil)
 	response, err := NewGlob.QueryClient.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)

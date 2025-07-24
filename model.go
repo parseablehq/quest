@@ -507,27 +507,11 @@ func getAlertBody(stream string, targetId string) string {
     {
       "severity": "medium",
       "title": "AlertTitle",
-      "stream": "%s",
+      "query": "select count(level) from %s where level = 'info'",
       "alertType": "threshold",
-      "aggregates": {
-          "operator": null,
-          "aggregateConfig": [
-              {
-                  "aggregateFunction": "count",
-                  "conditions": {
-                      "conditionConfig": [
-                          {
-                              "column": "level",
-                              "operator": "=",
-                              "value": "info"
-                          }
-                      ]
-                  },
-                  "column": "level",
-                  "operator": "=",
-                  "value": 100
-              }
-          ]
+      "thresholdConfig": {
+        "operator": "=",
+        "value": 100
       },
       "evalConfig": {
           "rollingWindow": {
@@ -544,15 +528,15 @@ func getAlertBody(stream string, targetId string) string {
 
 func getIdStateFromAlertResponse(body io.Reader) (string, string) {
 	type AlertConfig struct {
-		Severity   string `json:"severity"`
-		Title      string `json:"title"`
-		Id         string `json:"id"`
-		State      string `json:"state"`
-		Stream     string `json:"stream"`
-		AlertType  string `json:"alertType"`
-		Aggregates string `json:"aggregates"`
-		EvalConfig string `json:"evalConfig"`
-		Targets    string `json:"targets"`
+		Severity        string `json:"severity"`
+		Title           string `json:"title"`
+		Id              string `json:"id"`
+		State           string `json:"state"`
+		Query           string `json:"query"`
+		AlertType       string `json:"alertType"`
+		ThresholdConfig string `json:"thresholdConfig"`
+		EvalConfig      string `json:"evalConfig"`
+		Targets         string `json:"targets"`
 	}
 
 	var response []AlertConfig
@@ -567,44 +551,26 @@ func getIdStateFromAlertResponse(body io.Reader) (string, string) {
 func createAlertResponse(id string, state string, stream string, targetId string) string {
 	return fmt.Sprintf(`
   [{
-    "version": "v1",
-    "id": "%s",
-    "state": "%s",
-    "severity": "medium",
-    "title": "AlertTitle",
-    "stream": "%s",
-    "alertType": "threshold",
-    "aggregates": {
-        "operator": null,
-        "aggregateConfig": [
-            {
-                "aggregateFunction": "count",
-                "conditions": {
-                    "operator": null,
-                    "conditionConfig": [                  
-                        {
-                            "column": "level",
-                            "operator": "=",
-                            "value": "info"
-                        }
-                    ]
-                },
-                "groupBy": null,
-                "column": "level",
-                "operator": "=",
-                "value": 100
+        "version": "v2",
+        "id": "%s",
+        "severity": "medium",
+        "title": "AlertTitle",
+        "query": "select count(level) from %s where level = 'info'",
+        "alertType": "threshold",
+        "thresholdConfig": {
+            "operator": "=",
+            "value": 100.0
+        },
+        "evalConfig": {
+            "rollingWindow": {
+                "evalStart": "5m",
+                "evalEnd": "now",
+                "evalFrequency": 1
             }
-        ]
-    },
-    "evalConfig": {
-        "rollingWindow": {
-            "evalStart": "5m",
-            "evalEnd": "now",
-            "evalFrequency": 1
-        }
-    },
-    "targets": [
-        "%s"
-    ]
-  }]`, id, state, stream, targetId)
+        },
+        "targets": [
+            "%s"
+        ],
+        "state": "%s"
+    }]`, id, stream, targetId, state)
 }
