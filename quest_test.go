@@ -375,7 +375,6 @@ func TestSmokeLoad_CustomPartition_WithK6Stream(t *testing.T) {
 // }
 
 func TestSmokeSetTarget(t *testing.T) {
-	// RunFlog(t, NewGlob.QueryClient, NewGlob.Stream)
 	body := getTargetBody()
 	req, _ := NewGlob.QueryClient.NewRequest("POST", "/targets", strings.NewReader(body))
 	response, err := NewGlob.QueryClient.Do(req)
@@ -438,9 +437,9 @@ func TestSmokeGetAlert(t *testing.T) {
 	reader1 = bytes.NewReader(body)
 	reader2 := bytes.NewReader(body)
 	expected := readAsString(reader1)
-	id, state := getIdStateFromAlertResponse(reader2)
+	id, state, created := getMetadataFromAlertResponse(reader2)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
-	res := createAlertResponse(id, state, stream, targetId)
+	res := createAlertResponse(id, state, created)
 	require.JSONEq(t, expected, res, "Get alert response doesn't match with Alert config returned")
 	DeleteAlert(t, NewGlob.QueryClient, id)
 	DeleteTarget(t, NewGlob.QueryClient, targetId)
