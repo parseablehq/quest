@@ -522,21 +522,20 @@ func getAlertBody(stream string, targetId string) string {
       },
       "targets": [
           "%s"
-      ]
+      ],
+      "tags": ["quest-test"]
     }`, stream, targetId)
 }
 
-func getIdStateFromAlertResponse(body io.Reader) (string, string) {
+func getMetadataFromAlertResponse(body io.Reader) (string, string, string) {
 	type AlertConfig struct {
-		Severity        string `json:"severity"`
-		Title           string `json:"title"`
-		Id              string `json:"id"`
-		State           string `json:"state"`
-		Query           string `json:"query"`
-		AlertType       string `json:"alertType"`
-		ThresholdConfig string `json:"thresholdConfig"`
-		EvalConfig      string `json:"evalConfig"`
-		Targets         string `json:"targets"`
+		Severity  string   `json:"severity"`
+		Title     string   `json:"title"`
+		Id        string   `json:"id"`
+		State     string   `json:"state"`
+		AlertType string   `json:"alertType"`
+		Tags      []string `json:"tags"`
+		Created   string   `json:"created"`
 	}
 
 	var response []AlertConfig
@@ -545,32 +544,22 @@ func getIdStateFromAlertResponse(body io.Reader) (string, string) {
 	}
 
 	alert := response[0]
-	return alert.Id, alert.State
+	return alert.Id, alert.State, alert.Created
 }
 
-func createAlertResponse(id string, state string, stream string, targetId string) string {
+func createAlertResponse(id string, state string, created string) string {
 	return fmt.Sprintf(`
-  [{
-        "version": "v2",
-        "id": "%s",
-        "severity": "medium",
+  [
+    {
         "title": "AlertTitle",
-        "query": "select count(level) from %s where level = 'info'",
+        "created": "%s",
         "alertType": "threshold",
-        "thresholdConfig": {
-            "operator": "=",
-            "value": 100.0
-        },
-        "evalConfig": {
-            "rollingWindow": {
-                "evalStart": "5m",
-                "evalEnd": "now",
-                "evalFrequency": 1
-            }
-        },
-        "targets": [
-            "%s"
-        ],
-        "state": "%s"
-    }]`, id, stream, targetId, state)
+        "id": "%s",
+        "severity": "Medium (P2)",
+        "state": "%s",
+        "tags": [
+            "quest-test"
+        ]
+    }
+]`, created, id, state)
 }
