@@ -527,7 +527,7 @@ func getAlertBody(stream string, targetId string) string {
     }`, stream, targetId)
 }
 
-func getMetadataFromAlertResponse(body io.Reader) (string, string, string) {
+func getMetadataFromAlertResponse(body io.Reader) (string, string, string, []string) {
 	type AlertConfig struct {
 		Severity  string   `json:"severity"`
 		Title     string   `json:"title"`
@@ -536,6 +536,7 @@ func getMetadataFromAlertResponse(body io.Reader) (string, string, string) {
 		AlertType string   `json:"alertType"`
 		Tags      []string `json:"tags"`
 		Created   string   `json:"created"`
+		Datasets  []string `json:"datasets"`
 	}
 
 	var response []AlertConfig
@@ -544,10 +545,11 @@ func getMetadataFromAlertResponse(body io.Reader) (string, string, string) {
 	}
 
 	alert := response[0]
-	return alert.Id, alert.State, alert.Created
+	return alert.Id, alert.State, alert.Created, alert.Datasets
 }
 
-func createAlertResponse(id string, state string, created string) string {
+func createAlertResponse(id string, state string, created string, datasets []string) string {
+	datasetsJSON, _ := json.Marshal(datasets)
 	return fmt.Sprintf(`
   [
     {
@@ -559,7 +561,8 @@ func createAlertResponse(id string, state string, created string) string {
         "state": "%s",
         "tags": [
             "quest-test"
-        ]
+        ],
+        "datasets": %s
     }
-]`, created, id, state)
+]`, created, id, state, string(datasetsJSON))
 }
