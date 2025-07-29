@@ -557,7 +557,7 @@ func createAlertResponse(id string, state string, created string, datasets []str
         "created": "%s",
         "alertType": "threshold",
         "id": "%s",
-        "severity": "Medium (P2)",
+        "severity": "Medium",
         "state": "%s",
         "tags": [
             "quest-test"
