@@ -475,15 +475,11 @@ func Roleingestor(stream string) string {
 
 func getTargetBody() string {
 	return `          {
-                "name":"targetName",
+              "name":"targetName",
               "type": "webhook",
               "endpoint": "https://webhook.site/ec627445-d52b-44e9-948d-56671df3581e",
               "headers": {},
-              "skipTlsCheck": true,
-              "repeat": {
-                  "interval": "1m",
-                  "times": 1
-              }
+              "skipTlsCheck": true
           }
 `
 }
@@ -513,12 +509,22 @@ func getAlertBody(stream string, targetId string) string {
         "operator": "=",
         "value": 100
       },
+      "anomalyConfig": {
+        "historicDuration": "1d"
+        },
+      "forecastConfig": {
+        "historicDuration": "1d",
+        "forecastDuration": "3h"
+        },
       "evalConfig": {
           "rollingWindow": {
               "evalStart": "5m",
               "evalEnd": "now",
               "evalFrequency": 1
           }
+      },
+      "notificationConfig": {
+          "interval": 1
       },
       "targets": [
           "%s"
@@ -562,7 +568,8 @@ func createAlertResponse(id string, state string, created string, datasets []str
         "tags": [
             "quest-test"
         ],
-        "datasets": %s
+        "datasets": %s,
+        "notificationState": "notify"
     }
 ]`, created, id, state, string(datasetsJSON))
 }
