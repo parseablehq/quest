@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os/exec"
@@ -462,6 +463,174 @@ func TestSmokeGetRetention(t *testing.T) {
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
 	require.JSONEq(t, RetentionBody, body, "Get retention response doesn't match with retention config returned")
 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+}
+
+func TestActivateHotTier(t *testing.T) {
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	activateHotTier(t, "", true)
+	disableHotTier(t, false)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+}
+
+func TestActivateNonExistentHotTier(t *testing.T) {
+	if NewGlob.IngestorUrl.String() == "" {
+		t.Skip("Skipping in standalone mode")
+	}
+
+	status, _ := activateHotTier(t, "", false)
+	require.NotEqualf(t, status, 200, "Hot tier was activated for a non-existent stream.")
+}
+
+func TestHotTierWithTimePartition(t *testing.T) {
+	time_partition_stream := NewGlob.Stream + "timepartition"
+	timeHeader := map[string]string{"X-P-Time-Partition": "source_time", "X-P-Time-Partition-Limit": "365d"}
+	CreateStreamWithHeader(t, NewGlob.QueryClient, time_partition_stream, timeHeader)
+
+	payload := StreamHotTier{
+		Size: "20 GiB",
+	}
+	jsonPayload, _ := json.Marshal(payload)
+
+	req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+time_partition_stream+"/hottier", bytes.NewBuffer(jsonPayload))
+	req.Header.Set("Content-Type", "application/json")
+	response, _ := NewGlob.QueryClient.Do(req)
+	body := readAsString(response.Body)
+
+	require.NotEqualf(t, response.StatusCode, 200, "Hot tier activation succeeded for time partition with message: %s, but was expected to fail", body)
+}
+
+func TestHotTierHugeDiskSize(t *testing.T) {
+	if NewGlob.IngestorUrl.String() == "" {
+		t.Skip("Skipping in standalone mode")
+	}
+
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	status, err := activateHotTier(t, "1000GiB", false) // activate hot tier with huge disk size
+	require.NotEqualf(t, status, 200, "Hot tier was activated for a huge disk size with message: %s", err)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+}
+
+func TestHotTierIncreaseSize(t *testing.T) {
+	if NewGlob.IngestorUrl.String() == "" {
+		t.Skip("Skipping in standalone mode")
+	}
+
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	activateHotTier(t, "", false)
+	status, err := activateHotTier(t, "30 GiB", false) // increase disk size
+	require.Equalf(t, 200, status, "Increasing disk size of hot tier failed with error: %s", err)
+	disableHotTier(t, false)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+}
+
+func TestHotTierDecreaseSize(t *testing.T) {
+	if NewGlob.IngestorUrl.String() == "" {
+		t.Skip("Skipping in standalone mode")
+	}
+
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	activateHotTier(t, "", false)
+	status, message := activateHotTier(t, "10 GiB", false) // decrease disk size
+	require.NotEqualf(t, 200, status, "Decreasing disk size of hot tier should fail but succeeded with message: %s", message)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+}
+
+func TestGetNonExistentHotTier(t *testing.T) {
+	if NewGlob.IngestorUrl.String() == "" {
+		t.Skip("Skipping in standalone mode")
+	}
+
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	getHotTierStatus(t, true)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+}
+
+func TestDisableNonExistentHotTier(t *testing.T) {
+	if NewGlob.IngestorUrl.String() == "" {
+		t.Skip("Skipping in standalone mode")
+	}
+
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	disableHotTier(t, true)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+}
+
+// create stream, put hot tier, ingest data for a duration, wait for 2-3 mins to see if all data is available in hot tier
+func TestHotTierGetsLogs(t *testing.T) {
+	if NewGlob.IngestorUrl.String() == "" {
+		t.Skip("Skipping in standalone mode")
+	}
+
+	// DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	createAndIngest(t)
+	activateHotTier(t, "", true)
+	time.Sleep(2 * 60 * time.Second) // wait 2 minutes for hot tier to sync
+
+	htCount := QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 200)
+	disableHotTier(t, false)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+
+	require.Equalf(t, htCount, `[{"count":200}]`, "Ingested 200 logs, but hot tier contains %s", htCount)
+}
+
+// create stream, ingest data for a duration, set hot tier, wait for 2-3 mins to see if all data is available in hot tier
+func TestHotTierGetsLogsAfter(t *testing.T) {
+	if NewGlob.IngestorUrl.String() == "" {
+		t.Skip("Skipping in standalone mode")
+	}
+
+	// create a stream without hot tier
+	createAndIngest(t)
+	time.Sleep(2 * 60 * time.Second)
+	prevCount := QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 200)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+
+	// create a second stream with hot tier
+	createAndIngest(t)
+	activateHotTier(t, "", true)
+	time.Sleep(2 * 60 * time.Second) // wait 2 minutes for hot tier to sync
+
+	htCount := QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 200)
+	disableHotTier(t, false)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+
+	require.Equalf(t, prevCount, htCount, "With hot tier disabled, the count was %s but with it, the count is %s", prevCount, htCount)
+}
+
+// create stream, ingest data, query get count, set hot tier, wait for 2-3 mins, query again get count, both counts should match
+func TestHotTierLogCount(t *testing.T) {
+	if NewGlob.IngestorUrl.String() == "" {
+		t.Skip("Skipping in standalone mode")
+	}
+
+	createAndIngest(t)
+	countBefore := QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 200)
+
+	activateHotTier(t, "", true)
+	time.Sleep(60 * 2 * time.Second) // wait for 2 minutes to allow hot tier to sync
+
+	countAfter := QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 200)
+
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	require.Equalf(t, countBefore, countAfter, "Ingested %s, but hot tier contains only %s", countBefore, countAfter)
+}
+
+// create stream, ingest data for a duration, call GET /logstream/{logstream}/info - to get the first_event_at field then set hot tier, wait for 2-3 mins, call GET /hottier - to get oldest entry in hot tier then match both
+func TestOldestHotTierEntry(t *testing.T) {
+	if NewGlob.IngestorUrl.String() == "" {
+		t.Skip("Skipping in standalone mode")
+	}
+
+	createAndIngest(t)
+	streamInfo := getStreamInfo(t)
+
+	activateHotTier(t, "", true)
+	time.Sleep(60 * 2 * time.Second)
+
+	hottier := getHotTierStatus(t, false)
+
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	require.Equalf(t, streamInfo.FirstEventAt, hottier.OldestDateTimeEntry, "The first event at in the stream info is %s but the oldest entry in hot tier is %s", *streamInfo.FirstEventAt, *hottier.OldestDateTimeEntry)
 }
 
 // This test calls all the User API endpoints
