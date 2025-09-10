@@ -471,11 +471,11 @@ func TestSmoke_AllUsersAPI(t *testing.T) {
 	AssertRole(t, NewGlob.QueryClient, "dummyrole", dummyRole)
 
 	CreateUser(t, NewGlob.QueryClient, "dummyuser")
-	CreateUserWithRole(t, NewGlob.QueryClient, "dummyuser", []string{"dummyrole"})
-	AssertUserRole(t, NewGlob.QueryClient, "dummyuser", "dummyrole", dummyRole)
+	CreateUserWithRole(t, NewGlob.QueryClient, "dummyanotheruser", []string{"dummyrole"})
+	AssertUserRole(t, NewGlob.QueryClient, "dummyanotheruser", "dummyrole", dummyRole)
 	RegenPassword(t, NewGlob.QueryClient, "dummyuser")
 	DeleteUser(t, NewGlob.QueryClient, "dummyuser")
-
+	DeleteUser(t, NewGlob.QueryClient, "dummyanotheruser")
 	DeleteRole(t, NewGlob.QueryClient, "dummyrole")
 }
 
