@@ -3,27 +3,27 @@ import encoding from 'k6/encoding';
 import { check } from 'k6';
 
 // config for load test, uncomment to perform load test for an hour
-// export const options = {
-//     discardResponseBodies: true,
-//     // Key configurations for avg load test in this section
-//     stages: [
-//       { duration: '5m', target: 10 },
-//       { duration: '60m', target: 8 },
-//       { duration: '5m', target: 0 },
-//     ],
-// };
-
-// default options for all tests
 export const options = {
     discardResponseBodies: true,
-    scenarios: {
-        contacts: {
-            executor: 'constant-vus',
-            vus: 10,
-            duration: "5m",
-        },
-    },
+    // Key configurations for avg load test in this section
+    stages: [
+      { duration: '5m', target: 10 },
+      { duration: '60m', target: 8 },
+      { duration: '5m', target: 0 },
+    ],
 };
+
+// default options for all tests
+// export const options = {
+//     discardResponseBodies: true,
+//     scenarios: {
+//         contacts: {
+//             executor: 'constant-vus',
+//             vus: 10,
+//             duration: "5m",
+//         },
+//     },
+// };
 
 function randomIntBetween(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -102,7 +102,7 @@ function random_availability_zone() {
 }
 
 
-function generateTraceRecord(overrides = {}) {
+function generateTraceRecord() {
     const method = randomHttpMethod();
     const endpoint = randomApiEndpoint();
     const statusCode = randomStatusCode();
@@ -115,7 +115,7 @@ function generateTraceRecord(overrides = {}) {
     const eventTime = now.toISOString(); // now
     const eventName = randomEventName();
     const availability_zone = random_availability_zone();
-    return Object.assign({
+    return {
         "cloud.account.id": "724973952305",
         "cloud.availability_zone": availability_zone,
         "cloud.platform": "aws_ec2",
@@ -148,9 +148,17 @@ function generateTraceRecord(overrides = {}) {
         "telemetry.sdk.version": "2.0.1",
         "event_time_unix_nano": eventTime,
         "event_name": eventName
-    }, overrides);
+    };
 }
 
+// Generate a batch of OTEL traces
+function generateOtelTraces(count) {
+    const traces = [];
+    for (let i = 0; i < count; i++) {
+        traces.push(generateTraceRecord());
+    }
+    return traces;
+}
 
 function eventsPerCall() {
     return Number(__ENV.P_EVENTS_COUNT) || 100;
@@ -173,7 +181,7 @@ export default function () {
     };
 
     let events = eventsPerCall();
-    let batchRequests = JSON.stringify(generateTraceRecord(events));
+    let batchRequests = JSON.stringify(generateOtelTraces(events));
     let response = http.post(url, batchRequests, params);
     let date = new Date();
 
