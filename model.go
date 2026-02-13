@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 )
 
 const SchemaPayload string = `{
@@ -572,4 +573,427 @@ func createAlertResponse(id string, state string, created string, datasets []str
         "notificationState": "notify"
     }
 ]`, created, id, state, string(datasetsJSON))
+}
+
+// --- New payload models for expanded test coverage ---
+
+// Dashboard payloads
+func getDashboardCreateBody() string {
+	return `{
+		"title": "Quest Test Dashboard",
+		"description": "Dashboard created by quest integration test",
+		"tags": ["quest-test", "smoke"],
+		"tiles": []
+	}`
+}
+
+func getDashboardUpdateBody() string {
+	return `{
+		"title": "Quest Test Dashboard Updated",
+		"description": "Dashboard updated by quest integration test",
+		"tags": ["quest-test", "smoke", "updated"]
+	}`
+}
+
+func getDashboardAddTileBody(stream string) string {
+	return fmt.Sprintf(`{
+		"name": "Log Count Tile",
+		"description": "Shows total log count",
+		"query": "SELECT COUNT(*) as count FROM %s",
+		"visualization": "table",
+		"order": 1
+	}`, stream)
+}
+
+type DashboardResponse struct {
+	Id          string   `json:"id"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Tags        []string `json:"tags"`
+}
+
+func getIdFromDashboardResponse(body io.Reader) string {
+	var response DashboardResponse
+	if err := json.NewDecoder(body).Decode(&response); err != nil {
+		fmt.Printf("Error decoding dashboard: %v\n", err)
+	}
+	return response.Id
+}
+
+// Filter payloads
+func getFilterCreateBody(stream string) string {
+	return fmt.Sprintf(`{
+		"stream_name": "%s",
+		"filter_name": "Quest Test Filter",
+		"query": {
+			"filter_type": "sql",
+			"filter_query": "SELECT * FROM %s WHERE level = 'error'"
+		},
+		"tags": ["quest-test"]
+	}`, stream, stream)
+}
+
+func getFilterUpdateBody(stream string) string {
+	return fmt.Sprintf(`{
+		"stream_name": "%s",
+		"filter_name": "Quest Test Filter Updated",
+		"query": {
+			"filter_type": "sql",
+			"filter_query": "SELECT * FROM %s WHERE level = 'warn'"
+		},
+		"tags": ["quest-test", "updated"]
+	}`, stream, stream)
+}
+
+type FilterResponse struct {
+	FilterId   string `json:"filter_id"`
+	FilterName string `json:"filter_name"`
+}
+
+func getIdFromFilterResponse(body io.Reader) string {
+	var response FilterResponse
+	if err := json.NewDecoder(body).Decode(&response); err != nil {
+		fmt.Printf("Error decoding filter: %v\n", err)
+	}
+	return response.FilterId
+}
+
+// Correlation payloads
+func getCorrelationCreateBody(stream1, stream2 string) string {
+	return fmt.Sprintf(`{
+		"title": "Quest Test Correlation",
+		"tables": [
+			{
+				"table_name": "%s",
+				"selected_fields": ["host", "level", "message"]
+			},
+			{
+				"table_name": "%s",
+				"selected_fields": ["host", "level", "message"]
+			}
+		],
+		"join_config": {
+			"join_type": "inner",
+			"conditions": [
+				{
+					"table1": "%s",
+					"field1": "host",
+					"table2": "%s",
+					"field2": "host"
+				}
+			]
+		},
+		"tags": ["quest-test"]
+	}`, stream1, stream2, stream1, stream2)
+}
+
+func getCorrelationModifyBody(stream1, stream2 string) string {
+	return fmt.Sprintf(`{
+		"title": "Quest Test Correlation Modified",
+		"tables": [
+			{
+				"table_name": "%s",
+				"selected_fields": ["host", "level", "message", "status_code"]
+			},
+			{
+				"table_name": "%s",
+				"selected_fields": ["host", "level", "message"]
+			}
+		],
+		"join_config": {
+			"join_type": "inner",
+			"conditions": [
+				{
+					"table1": "%s",
+					"field1": "host",
+					"table2": "%s",
+					"field2": "host"
+				}
+			]
+		},
+		"tags": ["quest-test", "modified"]
+	}`, stream1, stream2, stream1, stream2)
+}
+
+type CorrelationResponse struct {
+	Id    string `json:"id"`
+	Title string `json:"title"`
+}
+
+func getIdFromCorrelationResponse(body io.Reader) string {
+	var response CorrelationResponse
+	if err := json.NewDecoder(body).Decode(&response); err != nil {
+		fmt.Printf("Error decoding correlation: %v\n", err)
+	}
+	return response.Id
+}
+
+// OTel log payload
+func getOTelLogPayload() string {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	return fmt.Sprintf(`{
+		"resourceLogs": [
+			{
+				"resource": {
+					"attributes": [
+						{"key": "service.name", "value": {"stringValue": "quest-test-service"}},
+						{"key": "host.name", "value": {"stringValue": "quest-test-host"}}
+					]
+				},
+				"scopeLogs": [
+					{
+						"scope": {"name": "quest-test"},
+						"logRecords": [
+							{
+								"timeUnixNano": "%s",
+								"severityNumber": 9,
+								"severityText": "INFO",
+								"body": {"stringValue": "Quest OTel test log message"},
+								"attributes": [
+									{"key": "log.type", "value": {"stringValue": "quest-otel-test"}}
+								],
+								"traceId": "abcdef1234567890abcdef1234567890",
+								"spanId": "abcdef1234567890"
+							}
+						]
+					}
+				]
+			}
+		]
+	}`, now)
+}
+
+// OTel trace payload
+func getOTelTracePayload() string {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	return fmt.Sprintf(`{
+		"resourceSpans": [
+			{
+				"resource": {
+					"attributes": [
+						{"key": "service.name", "value": {"stringValue": "quest-test-service"}},
+						{"key": "host.name", "value": {"stringValue": "quest-test-host"}}
+					]
+				},
+				"scopeSpans": [
+					{
+						"scope": {"name": "quest-test"},
+						"spans": [
+							{
+								"traceId": "abcdef1234567890abcdef1234567890",
+								"spanId": "abcdef1234567890",
+								"name": "quest-test-span",
+								"kind": 1,
+								"startTimeUnixNano": "%s",
+								"endTimeUnixNano": "%s",
+								"status": {"code": 1},
+								"attributes": [
+									{"key": "http.method", "value": {"stringValue": "GET"}},
+									{"key": "http.status_code", "value": {"intValue": "200"}}
+								]
+							}
+						]
+					}
+				]
+			}
+		]
+	}`, now, now)
+}
+
+// OTel metric payload
+func getOTelMetricPayload() string {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	return fmt.Sprintf(`{
+		"resourceMetrics": [
+			{
+				"resource": {
+					"attributes": [
+						{"key": "service.name", "value": {"stringValue": "quest-test-service"}},
+						{"key": "host.name", "value": {"stringValue": "quest-test-host"}}
+					]
+				},
+				"scopeMetrics": [
+					{
+						"scope": {"name": "quest-test"},
+						"metrics": [
+							{
+								"name": "quest.test.counter",
+								"unit": "1",
+								"sum": {
+									"dataPoints": [
+										{
+											"startTimeUnixNano": "%s",
+											"timeUnixNano": "%s",
+											"asInt": "42",
+											"attributes": [
+												{"key": "env", "value": {"stringValue": "test"}}
+											]
+										}
+									],
+									"aggregationTemporality": 2,
+									"isMonotonic": true
+								}
+							}
+						]
+					}
+				]
+			}
+		]
+	}`, now, now)
+}
+
+// Alert modification payloads
+func getAlertModifyBody(stream string, targetId string) string {
+	return fmt.Sprintf(`{
+		"severity": "high",
+		"title": "AlertTitle Modified",
+		"query": "select count(level) from %s where level = 'error'",
+		"alertType": "threshold",
+		"thresholdConfig": {
+			"operator": ">=",
+			"value": 50
+		},
+		"evalConfig": {
+			"rollingWindow": {
+				"evalStart": "10m",
+				"evalEnd": "now",
+				"evalFrequency": 2
+			}
+		},
+		"notificationConfig": {
+			"interval": 5
+		},
+		"targets": ["%s"],
+		"tags": ["quest-test", "modified"]
+	}`, stream, targetId)
+}
+
+// Hot tier payloads
+func getHotTierBody() string {
+	return `{
+		"size": "10GiB"
+	}`
+}
+
+// Dataset stats payload
+func getDatasetStatsBody(streams []string) string {
+	streamsJSON, _ := json.Marshal(streams)
+	return fmt.Sprintf(`{
+		"streams": %s
+	}`, string(streamsJSON))
+}
+
+// Prism datasets query payload
+func getPrismDatasetsBody(stream string) string {
+	now := time.Now().UTC()
+	startTime := now.Add(-30 * time.Minute).Format(time.RFC3339Nano)
+	endTime := now.Add(time.Second).Format(time.RFC3339Nano)
+	return fmt.Sprintf(`{
+		"query": "SELECT * FROM %s LIMIT 10",
+		"startTime": "%s",
+		"endTime": "%s"
+	}`, stream, startTime, endTime)
+}
+
+// Target update payload
+func getTargetUpdateBody() string {
+	return `{
+		"name": "targetNameUpdated",
+		"type": "webhook",
+		"endpoint": "https://webhook.site/ec627445-d52b-44e9-948d-56671df3581e",
+		"headers": {"X-Custom": "quest-test"},
+		"skipTlsCheck": true
+	}`
+}
+
+// RBAC add/remove role payloads
+func getRoleAddBody(roleName string) string {
+	return fmt.Sprintf(`["%s"]`, roleName)
+}
+
+func getMultiPrivilegeRoleBody(writerStream, readerStream string) string {
+	return fmt.Sprintf(`[{"privilege": "writer", "resource": {"stream": "%s"}}, {"privilege": "reader", "resource": {"stream": "%s"}}]`, writerStream, readerStream)
+}
+
+func getCorrelationCustomJoinBody(s1, s2, f1, f2 string) string {
+	return fmt.Sprintf(`{
+		"title": "Quest Custom Join Correlation",
+		"tables": [
+			{
+				"table_name": "%s",
+				"selected_fields": ["%s", "level", "message"]
+			},
+			{
+				"table_name": "%s",
+				"selected_fields": ["%s", "level", "message"]
+			}
+		],
+		"join_config": {
+			"join_type": "inner",
+			"conditions": [
+				{
+					"table1": "%s",
+					"field1": "%s",
+					"table2": "%s",
+					"field2": "%s"
+				}
+			]
+		},
+		"tags": ["quest-test"]
+	}`, s1, f1, s2, f2, s1, f1, s2, f2)
+}
+
+// NewSampleJsonWithFields merges base SampleJson fields with extra fields.
+func NewSampleJsonWithFields(extraFields map[string]interface{}) string {
+	var base map[string]interface{}
+	_ = json.Unmarshal([]byte(SampleJson), &base)
+	for k, v := range extraFields {
+		base[k] = v
+	}
+	out, _ := json.Marshal(base)
+	return string(out)
+}
+
+// NewSampleJsonBatch generates a JSON array of count events, each with a unique ID.
+func NewSampleJsonBatch(count int) string {
+	var base map[string]interface{}
+	_ = json.Unmarshal([]byte(SampleJson), &base)
+
+	events := make([]map[string]interface{}, count)
+	for i := 0; i < count; i++ {
+		evt := make(map[string]interface{}, len(base)+1)
+		for k, v := range base {
+			evt[k] = v
+		}
+		evt["batch_id"] = i
+		evt["p_timestamp"] = time.Now().UTC().Format(time.RFC3339Nano)
+		events[i] = evt
+	}
+	out, _ := json.Marshal(events)
+	return string(out)
+}
+
+func getDynamicSchemaEvent() string {
+	return `{
+		"source_time": "2024-10-27T05:13:26.742Z",
+		"level": "info",
+		"message": "Event with extra field",
+		"version": "1.2.0",
+		"user_id": 42,
+		"device_id": 100,
+		"session_id": "sess123",
+		"os": "Linux",
+		"host": "192.168.1.1",
+		"uuid": "test-uuid-001",
+		"location": "us-east-1",
+		"timezone": "UTC",
+		"user_agent": "TestAgent",
+		"runtime": "go",
+		"request_body": "test body",
+		"status_code": 200,
+		"response_time": 50,
+		"process_id": 999,
+		"app_meta": "test-meta",
+		"extra_field": "this is a new field not in original schema"
+	}`
 }
