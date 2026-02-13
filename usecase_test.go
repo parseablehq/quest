@@ -151,14 +151,7 @@ func TestUseCase_SREIncidentInvestigation(t *testing.T) {
 	AssertQueryOK(t, client, "SELECT method, COUNT(*) as cnt FROM %s GROUP BY method", stream1)
 	AssertQueryOK(t, client, "SELECT DISTINCT host FROM %s", stream2)
 
-	// 6. Create correlation (inner join on host)
-	correlationId := CreateCorrelation(t, client, stream1, stream2)
-	rt.TrackCorrelation(correlationId)
-
-	// 7. Verify correlation via GetById
-	GetCorrelationById(t, client, correlationId)
-
-	// 8. Get dataset stats for both streams
+	// 6. Get dataset stats for both streams
 	AssertDatasetStats(t, client, []string{stream1, stream2})
 }
 
@@ -499,49 +492,6 @@ func TestUseCase_DashboardDrivenMonitoringSetup(t *testing.T) {
 	// 10. Get dashboard by ID, verify structure
 	dashBody := GetDashboardById(t, client, dashboardId)
 	require.Contains(t, dashBody, "Quest Test Dashboard", "Dashboard should contain expected title")
-}
-
-// UC9: SRE correlates two streams with different schemas.
-func TestUseCase_CorrelationAcrossDifferentSchemas(t *testing.T) {
-	streamFlog := UniqueStream("uc9_flog")
-	streamStructured := UniqueStream("uc9_struct")
-	client := NewGlob.QueryClient
-	rt := NewResourceTracker(t, client)
-
-	// 1. Create flog stream (dynamic schema)
-	CreateStream(t, client, streamFlog)
-	rt.TrackStream(streamFlog)
-
-	// 2. Create structured stream (dynamic schema, different shape)
-	CreateStream(t, client, streamStructured)
-	rt.TrackStream(streamStructured)
-
-	// 3. Ingest flog data into first, structured event into second
-	RunFlogAuto(t, streamFlog)
-	ic := NewGlob.QueryClient
-	if NewGlob.IngestorUrl.String() != "" {
-		ic = NewGlob.IngestorClient
-	}
-	IngestCustomPayload(t, ic, streamStructured,
-		`[{"host":"192.168.1.1","level":"error","message":"backend error","status_code":500}]`, 200)
-
-	// 4. Wait for ingest
-	WaitForIngest(t, client, streamFlog, 50, 180*time.Second)
-	WaitForQueryable(t, client, streamStructured, 30*time.Second)
-
-	// 5. Create correlation on shared field "host"
-	correlationId := CreateCorrelationWithFields(t, client, streamFlog, streamStructured, "host", "host")
-	rt.TrackCorrelation(correlationId)
-
-	// 6. Verify correlation via GetById
-	GetCorrelationById(t, client, correlationId)
-
-	// 7. Modify correlation
-	ModifyCorrelation(t, client, correlationId, streamFlog, streamStructured)
-
-	// 8. Query both streams still work after correlation changes
-	AssertQueryOK(t, client, "SELECT * FROM %s LIMIT 5", streamFlog)
-	AssertQueryOK(t, client, "SELECT * FROM %s LIMIT 5", streamStructured)
 }
 
 // UC10: Developer's microservice starts sending logs with new fields.

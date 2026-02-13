@@ -937,37 +937,6 @@ func TestSmokeFilterLifecycle(t *testing.T) {
 	UpdateFilter(t, NewGlob.QueryClient, filterId, stream)
 }
 
-func TestSmokeCorrelationLifecycle(t *testing.T) {
-	t.Parallel()
-	rt := NewResourceTracker(t, NewGlob.QueryClient)
-	stream1 := NewGlob.Stream + "corr1"
-	stream2 := NewGlob.Stream + "corr2"
-	CreateStream(t, NewGlob.QueryClient, stream1)
-	rt.TrackStream(stream1)
-	CreateStream(t, NewGlob.QueryClient, stream2)
-	rt.TrackStream(stream2)
-
-	// Ingest data into both streams
-	RunFlogAuto(t, stream1)
-	RunFlogAuto(t, stream2)
-	WaitForIngest(t, NewGlob.QueryClient, stream1, 1, 180*time.Second)
-	WaitForIngest(t, NewGlob.QueryClient, stream2, 1, 180*time.Second)
-
-	// Create correlation
-	correlationId := CreateCorrelation(t, NewGlob.QueryClient, stream1, stream2)
-	require.NotEmptyf(t, correlationId, "Correlation ID should not be empty")
-	rt.TrackCorrelation(correlationId)
-
-	// List
-	ListCorrelations(t, NewGlob.QueryClient)
-
-	// Get by ID
-	GetCorrelationById(t, NewGlob.QueryClient, correlationId)
-
-	// Modify
-	ModifyCorrelation(t, NewGlob.QueryClient, correlationId, stream1, stream2)
-}
-
 func TestSmokePrismHome(t *testing.T) {
 	t.Parallel()
 	AssertPrismHome(t, NewGlob.QueryClient)

@@ -658,76 +658,6 @@ func getIdFromFilterResponse(body io.Reader) string {
 	return response.FilterId
 }
 
-// Correlation payloads
-func getCorrelationCreateBody(stream1, stream2 string) string {
-	return fmt.Sprintf(`{
-		"title": "Quest Test Correlation",
-		"tables": [
-			{
-				"table_name": "%s",
-				"selected_fields": ["host", "level", "message"]
-			},
-			{
-				"table_name": "%s",
-				"selected_fields": ["host", "level", "message"]
-			}
-		],
-		"join_config": {
-			"join_type": "inner",
-			"conditions": [
-				{
-					"table1": "%s",
-					"field1": "host",
-					"table2": "%s",
-					"field2": "host"
-				}
-			]
-		},
-		"tags": ["quest-test"]
-	}`, stream1, stream2, stream1, stream2)
-}
-
-func getCorrelationModifyBody(stream1, stream2 string) string {
-	return fmt.Sprintf(`{
-		"title": "Quest Test Correlation Modified",
-		"tables": [
-			{
-				"table_name": "%s",
-				"selected_fields": ["host", "level", "message", "status_code"]
-			},
-			{
-				"table_name": "%s",
-				"selected_fields": ["host", "level", "message"]
-			}
-		],
-		"join_config": {
-			"join_type": "inner",
-			"conditions": [
-				{
-					"table1": "%s",
-					"field1": "host",
-					"table2": "%s",
-					"field2": "host"
-				}
-			]
-		},
-		"tags": ["quest-test", "modified"]
-	}`, stream1, stream2, stream1, stream2)
-}
-
-type CorrelationResponse struct {
-	Id    string `json:"id"`
-	Title string `json:"title"`
-}
-
-func getIdFromCorrelationResponse(body io.Reader) string {
-	var response CorrelationResponse
-	if err := json.NewDecoder(body).Decode(&response); err != nil {
-		fmt.Printf("Error decoding correlation: %v\n", err)
-	}
-	return response.Id
-}
-
 // OTel log payload
 func getOTelLogPayload() string {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
@@ -913,34 +843,6 @@ func getRoleAddBody(roleName string) string {
 
 func getMultiPrivilegeRoleBody(writerStream, readerStream string) string {
 	return fmt.Sprintf(`[{"privilege": "writer", "resource": {"stream": "%s"}}, {"privilege": "reader", "resource": {"stream": "%s"}}]`, writerStream, readerStream)
-}
-
-func getCorrelationCustomJoinBody(s1, s2, f1, f2 string) string {
-	return fmt.Sprintf(`{
-		"title": "Quest Custom Join Correlation",
-		"tables": [
-			{
-				"table_name": "%s",
-				"selected_fields": ["%s", "level", "message"]
-			},
-			{
-				"table_name": "%s",
-				"selected_fields": ["%s", "level", "message"]
-			}
-		],
-		"join_config": {
-			"join_type": "inner",
-			"conditions": [
-				{
-					"table1": "%s",
-					"field1": "%s",
-					"table2": "%s",
-					"field2": "%s"
-				}
-			]
-		},
-		"tags": ["quest-test"]
-	}`, s1, f1, s2, f2, s1, f1, s2, f2)
 }
 
 // NewSampleJsonWithFields merges base SampleJson fields with extra fields.

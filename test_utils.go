@@ -803,56 +803,6 @@ func DeleteFilter(t *testing.T, client HTTPClient, filterId string) {
 	require.Equalf(t, 200, response.StatusCode, "Delete filter failed with status: %s, body: %s", response.Status, readAsString(response.Body))
 }
 
-// Correlation CRUD utilities
-func CreateCorrelation(t *testing.T, client HTTPClient, stream1, stream2 string) string {
-	t.Helper()
-	payload := getCorrelationCreateBody(stream1, stream2)
-	req, _ := client.NewRequest("POST", "correlation", strings.NewReader(payload))
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Create correlation request failed: %s", err)
-	body, _ := io.ReadAll(response.Body)
-	require.Equalf(t, 200, response.StatusCode, "Create correlation failed with status: %s, body: %s", response.Status, string(body))
-	reader := bytes.NewReader(body)
-	return getIdFromCorrelationResponse(reader)
-}
-
-func ListCorrelations(t *testing.T, client HTTPClient) string {
-	t.Helper()
-	req, _ := client.NewRequest("GET", "correlation", nil)
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "List correlations request failed: %s", err)
-	body := readAsString(response.Body)
-	require.Equalf(t, 200, response.StatusCode, "List correlations failed with status: %s, body: %s", response.Status, body)
-	return body
-}
-
-func GetCorrelationById(t *testing.T, client HTTPClient, correlationId string) string {
-	t.Helper()
-	req, _ := client.NewRequest("GET", "correlation/"+correlationId, nil)
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Get correlation by ID request failed: %s", err)
-	body := readAsString(response.Body)
-	require.Equalf(t, 200, response.StatusCode, "Get correlation failed with status: %s, body: %s", response.Status, body)
-	return body
-}
-
-func ModifyCorrelation(t *testing.T, client HTTPClient, correlationId string, stream1, stream2 string) {
-	t.Helper()
-	payload := getCorrelationModifyBody(stream1, stream2)
-	req, _ := client.NewRequest("PUT", "correlation/"+correlationId, strings.NewReader(payload))
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Modify correlation request failed: %s", err)
-	require.Equalf(t, 200, response.StatusCode, "Modify correlation failed with status: %s, body: %s", response.Status, readAsString(response.Body))
-}
-
-func DeleteCorrelation(t *testing.T, client HTTPClient, correlationId string) {
-	t.Helper()
-	req, _ := client.NewRequest("DELETE", "correlation/"+correlationId, nil)
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Delete correlation request failed: %s", err)
-	require.Equalf(t, 200, response.StatusCode, "Delete correlation failed with status: %s, body: %s", response.Status, readAsString(response.Body))
-}
-
 // Prism API utilities
 func AssertPrismHome(t *testing.T, client HTTPClient) {
 	t.Helper()
@@ -1190,17 +1140,6 @@ func DiscoverOTelStreams(t *testing.T, client HTTPClient) []string {
 		}
 	}
 	return otelStreams
-}
-
-func CreateCorrelationWithFields(t *testing.T, client HTTPClient, stream1, stream2, joinField1, joinField2 string) string {
-	t.Helper()
-	payload := getCorrelationCustomJoinBody(stream1, stream2, joinField1, joinField2)
-	req, _ := client.NewRequest("POST", "correlation", strings.NewReader(payload))
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Create correlation request failed: %s", err)
-	body, _ := io.ReadAll(response.Body)
-	require.Equalf(t, 200, response.StatusCode, "Create correlation failed with status: %s, body: %s", response.Status, string(body))
-	return getIdFromCorrelationResponse(bytes.NewReader(body))
 }
 
 func ConcurrentMultiStreamIngest(t *testing.T, client HTTPClient, streams []string, eventsPerStream int) {

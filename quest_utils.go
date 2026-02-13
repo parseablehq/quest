@@ -230,12 +230,6 @@ func (rt *ResourceTracker) TrackFilter(filterID string) {
 	})
 }
 
-func (rt *ResourceTracker) TrackCorrelation(corrID string) {
-	rt.addCleanup(func() {
-		deleteIgnoring404(rt.client, "DELETE", "correlation/"+corrID)
-	})
-}
-
 func (rt *ResourceTracker) AddCustomCleanup(fn func()) {
 	rt.addCleanup(fn)
 }
