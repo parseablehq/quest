@@ -456,21 +456,21 @@ const RetentionBody string = `[
 
 const (
 	TestUser  string = "alice"
-	dummyRole string = `[{"privilege": "editor"},{"privilege": "writer", "resource": {"stream": "app"}}]`
+	dummyRole string = `{"actions":[{"privilege": "editor"},{"privilege": "writer", "resource": {"stream": "app"}}], "roleType":"user"}`
 )
 
-const RoleEditor string = `[{"privilege": "editor"}]`
+const RoleEditor string = `{"actions":[{"privilege": "editor"}],"roleType":"user"}`
 
 func RoleWriter(stream string) string {
-	return fmt.Sprintf(`[{"privilege": "writer", "resource": {"stream": "%s"}}]`, stream)
+	return fmt.Sprintf(`{"actions":[{"privilege": "writer", "resource": {"stream": "%s"}}],"roleType":"user"}`, stream)
 }
 
 func RoleReader(stream string) string {
-	return fmt.Sprintf(`[{"privilege": "reader", "resource": {"stream": "%s"}}]`, stream)
+	return fmt.Sprintf(`{"actions":[{"privilege": "reader", "resource": {"stream": "%s"}}],"roleType":"user"}`, stream)
 }
 
 func Roleingestor(stream string) string {
-	return fmt.Sprintf(`[{"privilege": "ingestor", "resource": {"stream": "%s"}}]`, stream)
+	return fmt.Sprintf(`{"actions":[{"privilege": "ingestor", "resource": {"stream": "%s"}}],"roleType":"user"}`, stream)
 }
 
 func getTargetBody() string {
