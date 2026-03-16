@@ -33,6 +33,23 @@ const (
 	sleepDuration = 2 * time.Second
 )
 
+type StreamHotTier struct {
+	Size                string  `json:"size"`
+	UsedSize            *string `json:"used_size,omitempty"`
+	AvailableSize       *string `json:"available_size,omitempty"`
+	OldestDateTimeEntry *string `json:"oldest_date_time_entry,omitempty"`
+}
+
+type StreamInfo struct {
+	CreatedAt          string  `json:"created-at"`
+	FirstEventAt       *string `json:"first-event-at"`
+	CacheEnabled       *bool   `json:"cache_enabled"`
+	TimePartition      *string `json:"time_partition"`
+	TimePartitionLimit *string `json:"time_partition_limit"`
+	CustomPartition    *string `json:"custom_partition"`
+	StaticSchemaFlag   *string `json:"static_schema_flag"`
+}
+
 func flogStreamFields() []string {
 	return []string{
 		"p_timestamp",
@@ -66,8 +83,9 @@ func Sleep() {
 func CreateStream(t *testing.T, client HTTPClient, stream string) {
 	req, _ := client.NewRequest("PUT", "logstream/"+stream, nil)
 	response, err := client.Do(req)
+	body := readAsString(response.Body)
 	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s with response: %s", response.Status, body)
 }
 
 func CreateStreamWithHeader(t *testing.T, client HTTPClient, stream string, header map[string]string) {
@@ -196,7 +214,7 @@ func IngestOneEventForStaticSchemaStream_SameFieldsInLog(t *testing.T, client HT
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 }
 
-func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count uint64) {
+func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count uint64) string {
 	// Query last 30 minutes of data only
 	endTime := time.Now().Add(time.Second).Format(time.RFC3339Nano)
 	startTime := time.Now().Add(-30 * time.Minute).Format(time.RFC3339Nano)
@@ -214,6 +232,7 @@ func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count u
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
 	expected := fmt.Sprintf(`[{"count":%d}]`, count)
 	require.Equalf(t, expected, body, "Query count incorrect; Expected %s, Actual %s", expected, body)
+	return body
 }
 
 func QueryLogStreamCount_Historical(t *testing.T, client HTTPClient, stream string, count uint64) {
@@ -511,4 +530,92 @@ func checkAPIAccess(t *testing.T, queryClient HTTPClient, ingestClient HTTPClien
 		require.NoErrorf(t, err, "Request failed: %s", err)
 		require.Equalf(t, 403, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 	}
+}
+
+func activateHotTier(t *testing.T, size string, verify bool) (int, string) {
+	if size == "" {
+		size = "20 GiB" // default hot tier size
+	}
+
+	payload := StreamHotTier{
+		Size: size,
+	}
+	jsonPayload, _ := json.Marshal(payload)
+
+	req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/hottier", bytes.NewBuffer(jsonPayload))
+	req.Header.Set("Content-Type", "application/json")
+	response, err := NewGlob.QueryClient.Do(req)
+	body := readAsString(response.Body)
+
+	if verify {
+		if NewGlob.IngestorUrl.String() != "" {
+			require.Equalf(t, 200, response.StatusCode, "Server returned unexpected http code: %s and response: %s", response.Status, body)
+			require.NoErrorf(t, err, "Activating hot tier failed in distributed mode: %s", err)
+		} else {
+			// right now, hot tier is unavailable in standalone so anything other than 200 is fine
+			require.NotEqualf(t, 200, response.StatusCode, "Hot tier has been activated in standalone mode: %s and response: %s", response.Status, body)
+		}
+	}
+
+	return response.StatusCode, body
+}
+
+func getHotTierStatus(t *testing.T, shouldFail bool) *StreamHotTier {
+	req, err := NewGlob.QueryClient.NewRequest("GET", "logstream/"+NewGlob.Stream+"/hottier", nil)
+	require.NoError(t, err, "Failed to create request")
+
+	req.Header.Set("Content-Type", "application/json")
+
+	response, err := NewGlob.QueryClient.Do(req)
+	require.NoError(t, err, "Failed to execute GET /hottier")
+	defer response.Body.Close()
+
+	body := readAsString(response.Body)
+
+	if shouldFail {
+		require.NotEqualf(t, 200, response.StatusCode, "Hot tier was expected to fail but succeeded with body: %s", body)
+		return &StreamHotTier{Size: "0"}
+	} else {
+		require.Equalf(t, 200, response.StatusCode, "GET hot tier failed with status code: %d & body: %s", response.StatusCode, body)
+	}
+
+	var hotTierStatus StreamHotTier
+	err = json.Unmarshal([]byte(body), &hotTierStatus)
+	require.NoError(t, err, "The response from GET /hottier isn't of expected schema: %s", body)
+
+	return &hotTierStatus
+}
+
+func disableHotTier(t *testing.T, shouldFail bool) {
+	req, _ := NewGlob.QueryClient.NewRequest("DELETE", "logstream/"+NewGlob.Stream+"/hottier", nil)
+	response, err := NewGlob.QueryClient.Do(req)
+	body := readAsString(response.Body)
+
+	if shouldFail {
+		require.NotEqualf(t, 200, response.StatusCode, "Non-existent hot tier was disabled with response: %s", body)
+	} else {
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
+	}
+	require.NoErrorf(t, err, "Disabling hot tier failed: %s", err)
+}
+
+func getStreamInfo(t *testing.T) *StreamInfo {
+	req, err := NewGlob.QueryClient.NewRequest("GET", "logstream/"+NewGlob.Stream+"/info", nil)
+	require.NoError(t, err, "Failed to create request")
+
+	req.Header.Set("Content-Type", "application/json")
+
+	response, err := NewGlob.QueryClient.Do(req)
+	require.NoError(t, err, "Failed to execute GET /logstream/{stream_name}/info")
+	defer response.Body.Close()
+
+	body := readAsString(response.Body)
+
+	require.Equal(t, 200, response.StatusCode, "GET /logstream/{stream_name}/info failed with status code: %d & body: %s", response.StatusCode, body)
+
+	var streamInfo StreamInfo
+	err = json.Unmarshal([]byte(body), &streamInfo)
+	require.NoError(t, err, "The response from GET /info isn't of expected schema: %s", body)
+
+	return &streamInfo
 }
