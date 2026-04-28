@@ -19,7 +19,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,30 +27,56 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/apache/arrow-go/v18/arrow/array"
-	"github.com/apache/arrow-go/v18/arrow/memory"
-	"github.com/apache/arrow-go/v18/parquet/file"
-	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 	"github.com/minio/minio-go"
 	"github.com/stretchr/testify/require"
+
+	"github.com/xitongsys/parquet-go-source/local"
+	"github.com/xitongsys/parquet-go/reader"
 )
 
 type Flog struct {
-	Host      string  `json:"host"`
-	UserId    string  `json:"user-identifier"`
-	Timestamp string  `json:"datetime"`
-	Method    string  `json:"method"`
-	Request   string  `json:"request"`
-	Protocol  string  `json:"protocol"`
-	Status    float64 `json:"status"`
-	ByteCount float64 `json:"bytes"`
-	Referer   string  `json:"referer"`
+	Host      string `json:"host"`
+	UserId    string `json:"user-identifier"`
+	Timestamp string `json:"datetime"`
+	Method    string `json:"method"`
+	Request   string `json:"request"`
+	Protocol  string `json:"protocol"`
+	Status    uint16 `json:"status"`
+	ByteCount uint64 `json:"bytes"`
+	Referer   string `json:"referer"`
+}
+
+// Same as `Flog`, but all fields are pointers, because `parquet-go` is only
+// working when fields are pointers.
+type ParquetFlog struct {
+	Host      *string `parquet:"name=host, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
+	UserId    *string `parquet:"name=user-identifier, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
+	Timestamp *string `parquet:"name=datetime, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
+	Method    *string `parquet:"name=method, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
+	Request   *string `parquet:"name=request, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
+	Protocol  *string `parquet:"name=protocol, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
+	Status    *uint16 `parquet:"name=status, type=INT32, encoding=PLAIN"`
+	ByteCount *uint64 `parquet:"name=bytes, type=INT32, encoding=PLAIN"`
+	Referer   *string `parquet:"name=referer, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
+}
+
+func (flog *ParquetFlog) Deref() Flog {
+	return Flog{
+		Host:      *flog.Host,
+		UserId:    *flog.UserId,
+		Timestamp: *flog.Timestamp,
+		Method:    *flog.Method,
+		Request:   *flog.Request,
+		Protocol:  *flog.Protocol,
+		Status:    *flog.Status,
+		ByteCount: *flog.ByteCount,
+		Referer:   *flog.Referer,
+	}
 }
 
 // - Send logs to Parseable
@@ -59,13 +84,11 @@ type Flog struct {
 // - Download parquet files from the store created by Parseable for the minute
 // - Compare the sent logs with the ones loaded from the downloaded parquet
 func TestIntegrity(t *testing.T) {
-	t.Parallel()
-	stream := uniqueStream(t)
-	CreateStream(t, NewGlob.QueryClient, stream)
+	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
 	iterations := 1
 	flogsPerIteration := 100
 
-	parseableSyncWait := 2 * time.Minute // NOTE: This needs to be in sync with Parseable's.
+	parseableSyncWait := 3 * time.Minute // NOTE: This needs to be in sync with Parseable's.
 
 	// - Generate log files using `flog`
 	// - Load them into `Flog` structs
@@ -73,9 +96,8 @@ func TestIntegrity(t *testing.T) {
 
 	flogs := make([]Flog, 0, iterations*flogsPerIteration)
 
-	tmpDir := t.TempDir()
-	for i := range iterations {
-		flogsFile := filepath.Join(tmpDir, fmt.Sprintf("%s_%d_%s.log", stream, i, randSuffix()))
+	for i := 0; i < iterations; i++ {
+		flogsFile := fmt.Sprintf("%d.log", i)
 
 		err := exec.Command("flog",
 			"--number", strconv.Itoa(flogsPerIteration),
@@ -89,7 +111,7 @@ func TestIntegrity(t *testing.T) {
 
 		loadedFlogs := loadFlogsFromFile(flogsFile)
 
-		err = ingestFlogs(loadedFlogs, stream)
+		err = ingestFlogs(loadedFlogs, NewGlob.Stream)
 		if err != nil {
 			t.Fatal("error ingesting flogs", err)
 		}
@@ -105,26 +127,20 @@ func TestIntegrity(t *testing.T) {
 		// XXX: We don't need to sleep for the entire minute, just until the next minute boundary.
 	}
 
-	parquetFiles := downloadParquetFiles(stream, NewGlob.MinIoConfig)
+	parquetFiles := downloadParquetFiles(NewGlob.Stream, NewGlob.MinIoConfig)
 	actualFlogs := loadFlogsFromParquetFiles(parquetFiles)
 
-	require.Equal(t, len(flogs), len(actualFlogs), "row count mismatch")
-
-	// Row order from parquet not deterministic under concurrent writes.
-	// Sort both slices on a stable composite key before compare.
-	sortKey := func(f Flog) string {
-		return fmt.Sprintf("%s|%s|%s|%s|%v|%v|%s",
-			f.Timestamp, f.Host, f.UserId, f.Request, f.Status, f.ByteCount, f.Referer)
-	}
-	sort.Slice(flogs, func(i, j int) bool { return sortKey(flogs[i]) < sortKey(flogs[j]) })
-	sort.Slice(actualFlogs, func(i, j int) bool { return sortKey(actualFlogs[i]) < sortKey(actualFlogs[j]) })
+	rowCount := len(actualFlogs)
 
 	for i, expectedFlog := range flogs {
-		actualFlog := actualFlogs[i]
-		require.Equal(t, expectedFlog, actualFlog)
+		// The rows in parquet written by Parseable will be latest first, so we
+		// compare the first of ours with the last of what we got from Parseable's
+		// store.
+		actualFlog := actualFlogs[rowCount-i-1].Deref()
+		require.Equal(t, actualFlog, expectedFlog)
 	}
 
-	DeleteStream(t, NewGlob.QueryClient, stream)
+	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
 func ingestFlogs(flogs []Flog, stream string) error {
@@ -196,90 +212,46 @@ func downloadParquetFiles(stream string, config MinIoConfig) []string {
 		f.Close()
 	}
 
+	// Reverse the filenames, because we want latest files first (only if there are multiple files)
+	if len(downloadedFileNames) > 1 {
+		for i, j := 0, len(downloadedFileNames)-1; i < j; i, j = i+1, j-1 {
+			downloadedFileNames[i], downloadedFileNames[j] = downloadedFileNames[j], downloadedFileNames[i]
+		}
+	}
+
 	slog.Info("downloaded files", "paths", downloadedFileNames)
 
 	return downloadedFileNames
 }
 
-func loadFlogsFromParquetFile(path string) []Flog {
+func loadFlogsFromParquetFile(path string) []ParquetFlog {
+	fr, err := local.NewLocalFileReader(path)
 	slog.Info("reading parquet file", "path", path)
-
-	rdr, err := file.OpenParquetFile(path, false)
 	if err != nil {
-		slog.Error("can't open parquet file", "error", err)
-		return nil
+		slog.Error("can't create local file reader", "error", err)
 	}
-	defer rdr.Close()
 
-	arrowRdr, err := pqarrow.NewFileReader(rdr, pqarrow.ArrowReadProperties{}, memory.DefaultAllocator)
+	defer fr.Close()
+
+	pr, err := reader.NewParquetReader(fr, new(ParquetFlog), 4)
 	if err != nil {
-		slog.Error("can't create arrow reader", "error", err)
-		return nil
+		slog.Error("can't create parquet reader", "error", err)
 	}
 
-	tbl, err := arrowRdr.ReadTable(context.Background())
-	if err != nil {
-		slog.Error("can't read table", "error", err)
-		return nil
-	}
-	defer tbl.Release()
+	defer pr.ReadStop()
 
-	numRows := int(tbl.NumRows())
-	slog.Info("read parquet", "rows", numRows, "path", path)
+	flogs := make([]ParquetFlog, pr.GetNumRows())
 
-	// Build column index for lookup by name
-	colIndex := make(map[string]int)
-	for i := 0; i < int(tbl.NumCols()); i++ {
-		colIndex[tbl.Column(i).Name()] = i
-	}
-
-	getStringCol := func(name string) *array.String {
-		idx, ok := colIndex[name]
-		if !ok {
-			return nil
-		}
-		return tbl.Column(idx).Data().Chunk(0).(*array.String)
-	}
-
-	getFloat64Col := func(name string) *array.Float64 {
-		idx, ok := colIndex[name]
-		if !ok {
-			return nil
-		}
-		return tbl.Column(idx).Data().Chunk(0).(*array.Float64)
-	}
-
-	hostCol := getStringCol("host")
-	userIdCol := getStringCol("user-identifier")
-	datetimeCol := getStringCol("datetime")
-	methodCol := getStringCol("method")
-	requestCol := getStringCol("request")
-	protocolCol := getStringCol("protocol")
-	statusCol := getFloat64Col("status")
-	bytesCol := getFloat64Col("bytes")
-	refererCol := getStringCol("referer")
-
-	flogs := make([]Flog, numRows)
-	for i := range numRows {
-		flogs[i] = Flog{
-			Host:      hostCol.Value(i),
-			UserId:    userIdCol.Value(i),
-			Timestamp: datetimeCol.Value(i),
-			Method:    methodCol.Value(i),
-			Request:   requestCol.Value(i),
-			Protocol:  protocolCol.Value(i),
-			Status:    statusCol.Value(i),
-			ByteCount: bytesCol.Value(i),
-			Referer:   refererCol.Value(i),
-		}
+	if err = pr.Read(&flogs); err != nil {
+		slog.Error("can't read parquet file", "error", err)
 	}
 
 	return flogs
 }
 
-func loadFlogsFromParquetFiles(parquetFiles []string) []Flog {
+func loadFlogsFromParquetFiles(parquetFiles []string) []ParquetFlog {
 	slog.Info("loading flogs from parquet files", "paths", parquetFiles, "count", len(parquetFiles))
-	flogs := make([]Flog, 0, len(parquetFiles)*10)
+	flogs := make([]ParquetFlog, 0, len(parquetFiles)*10)
 
 	for _, parquetFile := range parquetFiles {
 		flogs = append(flogs, loadFlogsFromParquetFile(parquetFile)...)
