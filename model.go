@@ -455,9 +455,12 @@ const RetentionBody string = `[
 ]`
 
 const (
-	TestUser  string = "alice"
-	dummyRole string = `{"actions":[{"privilege": "editor"},{"privilege": "writer", "resource": {"stream": "app"}}], "roleType":"user"}`
+	TestUser string = "alice"
 )
+
+func dummyRoleBody(stream string) string {
+	return fmt.Sprintf(`{"actions":[{"privilege": "editor"},{"privilege": "writer", "resource": {"stream": "%s"}}], "roleType":"user"}`, stream)
+}
 
 const RoleEditor string = `{"actions":[{"privilege": "editor"}],"roleType":"user"}`
 
@@ -473,15 +476,14 @@ func Roleingestor(stream string) string {
 	return fmt.Sprintf(`{"actions":[{"privilege": "ingestor", "resource": {"stream": "%s"}}],"roleType":"user"}`, stream)
 }
 
-func getTargetBody() string {
-	return `          {
-              "name":"targetName",
+func getTargetBody(name string) string {
+	return fmt.Sprintf(`{
+              "name":"%s",
               "type": "webhook",
               "endpoint": "https://webhook.site/ec627445-d52b-44e9-948d-56671df3581e",
               "headers": {},
               "skipTlsCheck": true
-          }
-`
+          }`, name)
 }
 
 func getIdFromTargetResponse(body io.Reader) string {
@@ -498,11 +500,11 @@ func getIdFromTargetResponse(body io.Reader) string {
 	return target.Id
 }
 
-func getAlertBody(stream string, targetId string) string {
+func getAlertBody(stream string, targetId string, alertTitle string) string {
 	return fmt.Sprintf(`
     {
       "severity": "medium",
-      "title": "AlertTitle",
+      "title": "%s",
       "query": "select count(level) from %s where level = 'info'",
       "alertType": "threshold",
       "thresholdConfig": {
@@ -530,7 +532,7 @@ func getAlertBody(stream string, targetId string) string {
           "%s"
       ],
       "tags": ["quest-test"]
-    }`, stream, targetId)
+    }`, alertTitle, stream, targetId)
 }
 
 func getMetadataFromAlertResponse(body io.Reader) (string, string, string, []string) {
@@ -554,12 +556,12 @@ func getMetadataFromAlertResponse(body io.Reader) (string, string, string, []str
 	return alert.Id, alert.State, alert.Created, alert.Datasets
 }
 
-func createAlertResponse(id string, state string, created string, datasets []string) string {
+func createAlertResponse(alertTitle string, id string, state string, created string, datasets []string) string {
 	datasetsJSON, _ := json.Marshal(datasets)
 	return fmt.Sprintf(`
   [
     {
-        "title": "AlertTitle",
+        "title": "%s",
         "created": "%s",
         "alertType": "threshold",
         "id": "%s",
@@ -571,5 +573,5 @@ func createAlertResponse(id string, state string, created string, datasets []str
         "datasets": %s,
         "notificationState": "notify"
     }
-]`, created, id, state, string(datasetsJSON))
+]`, alertTitle, created, id, state, string(datasetsJSON))
 }
