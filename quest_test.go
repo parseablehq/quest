@@ -727,8 +727,3 @@ func TestLoadStreamNoBatchWithCustomPartitionWithK6(t *testing.T) {
 
 	DeleteStream(t, client, stream)
 }
-
-func TestDeleteStream(t *testing.T) {
-	client := testClient(t)
-	DeleteStream(t, client, NewGlob.Stream)
-}
