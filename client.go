@@ -32,27 +32,10 @@ type HTTPClient struct {
 
 func DefaultClient(url url.URL, username string, password string) HTTPClient {
 	return HTTPClient{
-		client: http.Client{
-			Timeout:   60 * time.Second,
-			Transport: &http.Transport{},
-		},
+		client:   http.Client{Timeout: 60 * time.Second},
 		Url:      url,
 		Username: username,
 		Password: password,
-	}
-}
-
-// NewClient creates a new HTTPClient with its own connection pool.
-// Use this in parallel tests to avoid connection sharing issues.
-func NewClient(base HTTPClient) HTTPClient {
-	return HTTPClient{
-		client: http.Client{
-			Timeout:   60 * time.Second,
-			Transport: &http.Transport{},
-		},
-		Url:      base.Url,
-		Username: base.Username,
-		Password: base.Password,
 	}
 }
 
