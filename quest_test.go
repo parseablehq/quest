@@ -101,7 +101,7 @@ func TestLoadStream_StaticSchema_EventWithSameFields(t *testing.T) {
 func TestLoadStreamBatchWithK6_StaticSchema(t *testing.T) {
 	t.Parallel()
 	client := testClient(t)
-	if NewGlob.Mode == "load" {
+	if NewGlob.Mode == "load" || NewGlob.Mode == "load-parallel" {
 		stream := uniqueStream(t)
 		staticSchemaFlagHeader := map[string]string{"X-P-Static-Schema-Flag": "true"}
 		CreateStreamWithSchemaBody(t, client, stream, staticSchemaFlagHeader, SchemaPayload)
@@ -538,7 +538,7 @@ func TestSmokeRoles(t *testing.T) {
 func TestLoadStreamBatchWithK6(t *testing.T) {
 	t.Parallel()
 	client := testClient(t)
-	if NewGlob.Mode == "load" {
+	if NewGlob.Mode == "load" || NewGlob.Mode == "load-parallel" {
 		stream := uniqueStream(t)
 		CreateStream(t, client, stream)
 		if NewGlob.IngestorUrl.String() == "" {
@@ -636,7 +636,7 @@ func TestLoadStreamBatchWithCustomPartitionWithK6(t *testing.T) {
 
 func TestLoadStreamNoBatchWithK6(t *testing.T) {
 	t.Parallel()
-	if NewGlob.Mode == "load" {
+	if NewGlob.Mode == "load" || NewGlob.Mode == "load-parallel" {
 		client := testClient(t)
 		stream := uniqueStream(t)
 		CreateStream(t, client, stream)
