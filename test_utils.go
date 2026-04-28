@@ -18,6 +18,8 @@ package main
 
 import (
 	"bytes"
+	crypto_rand "crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -32,6 +34,54 @@ import (
 const (
 	sleepDuration = 2 * time.Second
 )
+
+// testClient returns a fresh HTTPClient with its own connection pool for the test.
+func testClient(t *testing.T) HTTPClient {
+	t.Helper()
+	return NewClient(NewGlob.QueryClient)
+}
+
+// testIngestClient returns a fresh ingest HTTPClient for the test.
+func testIngestClient(t *testing.T) HTTPClient {
+	t.Helper()
+	if NewGlob.IngestorUrl.String() != "" {
+		return NewClient(NewGlob.IngestorClient)
+	}
+	return testClient(t)
+}
+
+// sanitizeTestName returns a lowercase alphanumeric string derived from t.Name().
+func sanitizeTestName(t *testing.T, maxLen int) string {
+	name := strings.ToLower(t.Name())
+	name = strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			return r
+		}
+		return -1
+	}, name)
+	if len(name) > maxLen {
+		name = name[:maxLen]
+	}
+	return name
+}
+
+// randSuffix returns 8 random hex characters for unique resource names.
+func randSuffix() string {
+	b := make([]byte, 4)
+	crypto_rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// uniqueStream returns a unique stream name derived from the test name.
+func uniqueStream(t *testing.T) string {
+	return sanitizeTestName(t, 30) + randSuffix()
+}
+
+// uniqueName returns a unique resource name (for users, roles, etc.) derived
+// from the test name with an appended suffix.
+func uniqueName(t *testing.T, suffix string) string {
+	return sanitizeTestName(t, 22) + randSuffix() + suffix
+}
 
 func flogStreamFields() []string {
 	return []string{
@@ -64,7 +114,11 @@ func Sleep() {
 }
 
 func CreateStream(t *testing.T, client HTTPClient, stream string) {
-	req, _ := client.NewRequest("PUT", "logstream/"+stream, nil)
+	// Delete first in case a previous run left this stream behind.
+	req, _ := client.NewRequest("DELETE", "logstream/"+stream, nil)
+	client.Do(req)
+
+	req, _ = client.NewRequest("PUT", "logstream/"+stream, nil)
 	response, err := client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
@@ -305,6 +359,15 @@ func AssertRole(t *testing.T, client HTTPClient, name string, role string) {
 	body := readAsString(response.Body)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
 	require.JSONEq(t, role, body, "Get role response doesn't match with retention config returned")
+}
+
+func GetRole(t *testing.T, client HTTPClient, name string) string {
+	req, _ := client.NewRequest("GET", "role/"+name, nil)
+	response, err := client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	body := readAsString(response.Body)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
+	return body
 }
 
 func CreateUser(t *testing.T, client HTTPClient, user string) string {
