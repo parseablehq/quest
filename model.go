@@ -479,7 +479,7 @@ func getTargetBody() string {
               "type": "webhook",
               "endpoint": "https://webhook.site/ec627445-d52b-44e9-948d-56671df3581e",
               "headers": {},
-              "skipTlsCheck": true
+              "skipTlsCheck": false
           }
 `
 }
