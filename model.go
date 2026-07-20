@@ -485,9 +485,13 @@ func getTargetBody() string {
 }
 
 func getIdFromTargetResponse(body io.Reader) string {
-	type TargetConf struct {
+	type TargetConfInner struct {
 		Type string `json:"type"`
 		Id   string `json:"id"`
+	}
+	type TargetConf struct {
+		Target  TargetConfInner
+		Enabled bool
 	}
 	var response []TargetConf
 	if err := json.NewDecoder(body).Decode(&response); err != nil {
@@ -495,7 +499,7 @@ func getIdFromTargetResponse(body io.Reader) string {
 	}
 
 	target := response[0]
-	return target.Id
+	return target.Target.Id
 }
 
 func getAlertBody(stream string, targetId string) string {
