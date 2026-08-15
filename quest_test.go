@@ -65,21 +65,6 @@ func TestSmokeDetectSchema(t *testing.T) {
 	DetectSchema(t, NewGlob.QueryClient, SampleJson, SchemaBody)
 }
 
-func TestSmokeIngestEventsToStream(t *testing.T) {
-	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
-	if NewGlob.IngestorUrl.String() == "" {
-		RunFlog(t, NewGlob.QueryClient, NewGlob.Stream)
-	} else {
-		RunFlog(t, NewGlob.IngestorClient, NewGlob.Stream)
-	}
-	// Calling Sleep method
-	time.Sleep(120 * time.Second)
-
-	QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 50)
-	AssertStreamSchema(t, NewGlob.QueryClient, NewGlob.Stream, FlogJsonSchema)
-	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
-}
-
 // func TestTimePartition_TimeStampMismatch(t *testing.T) {
 // 	historicalStream := NewGlob.Stream + "historical"
 // 	timeHeader := map[string]string{"X-P-Time-Partition": "source_time"}
@@ -130,50 +115,49 @@ func TestLoadStream_StaticSchema_EventWithSameFields(t *testing.T) {
 
 func TestLoadStreamBatchWithK6_StaticSchema(t *testing.T) {
 	if NewGlob.Mode == "load" {
-		staticSchemaStream := NewGlob.Stream + "staticschema"
+		t.Parallel()
+
+		staticSchemaStream := NewGlob.Stream + "loadbatchstaticschema"
 		staticSchemaFlagHeader := map[string]string{"X-P-Static-Schema-Flag": "true"}
 		CreateStreamWithSchemaBody(t, NewGlob.QueryClient, staticSchemaStream, staticSchemaFlagHeader, SchemaPayload)
+		t.Cleanup(func() {
+			DeleteStream(t, NewGlob.QueryClient, staticSchemaStream)
+		})
 		if NewGlob.IngestorUrl.String() == "" {
 			cmd := exec.Command("k6",
 				"run",
+				"--address", "",
+				"--vus", vus,
+				"--duration", duration,
 				"-e", fmt.Sprintf("P_URL=%s", &NewGlob.QueryUrl),
 				"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
 				"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
 				"-e", fmt.Sprintf("P_STREAM=%s", staticSchemaStream),
 				"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
 				"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", events_count),
-				"./scripts/load_batch_events.js",
-				"--vus=", vus,
-				"--duration=", duration)
+				"./scripts/load_batch_events.js")
 
-			cmd.Run()
-			op, err := cmd.Output()
-			if err != nil {
-				t.Log(err)
-			}
+			op, err := cmd.CombinedOutput()
+			require.NoErrorf(t, err, "k6 failed: %s", string(op))
 			t.Log(string(op))
 		} else {
 			cmd := exec.Command("k6",
 				"run",
+				"--address", "",
+				"--vus", vus,
+				"--duration", duration,
 				"-e", fmt.Sprintf("P_URL=%s", &NewGlob.IngestorUrl),
 				"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
 				"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
 				"-e", fmt.Sprintf("P_STREAM=%s", staticSchemaStream),
 				"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
 				"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", events_count),
-				"./scripts/load_batch_events.js",
-				"--vus=", vus,
-				"--duration=", duration)
+				"./scripts/load_batch_events.js")
 
-			cmd.Run()
-			op, err := cmd.Output()
-			if err != nil {
-				t.Log(err)
-			}
+			op, err := cmd.CombinedOutput()
+			require.NoErrorf(t, err, "k6 failed: %s", string(op))
 			t.Log(string(op))
 		}
-
-		DeleteStream(t, NewGlob.QueryClient, staticSchemaStream)
 	}
 }
 
@@ -202,80 +186,100 @@ func TestCreateStream_WithCustomPartition_Error(t *testing.T) {
 	CreateStreamWithCustompartitionError(t, NewGlob.QueryClient, customPartitionStream, customHeader)
 }
 
-func TestSmokeQueryTwoStreams(t *testing.T) {
+func TestSmokeIngestAndQuery(t *testing.T) {
 	stream1 := NewGlob.Stream + "1"
 	stream2 := NewGlob.Stream + "2"
 	CreateStream(t, NewGlob.QueryClient, stream1)
 	CreateStream(t, NewGlob.QueryClient, stream2)
+
 	if NewGlob.IngestorUrl.String() == "" {
 		RunFlog(t, NewGlob.QueryClient, stream1)
 		RunFlog(t, NewGlob.QueryClient, stream2)
 	} else {
 		RunFlog(t, NewGlob.IngestorClient, stream1)
 		RunFlog(t, NewGlob.IngestorClient, stream2)
-
 	}
+
+	// Parseable persists ingested events in a two-minute batch. Both streams are
+	// populated before this wait so all ingestion and query assertions can share
+	// the same batch window.
 	time.Sleep(120 * time.Second)
-	QueryTwoLogStreamCount(t, NewGlob.QueryClient, stream1, stream2, 100)
+
+	t.Run("IngestEventsToStream", func(t *testing.T) {
+		QueryLogStreamCount(t, NewGlob.QueryClient, stream1, 50)
+		AssertStreamSchema(t, NewGlob.QueryClient, stream1, FlogJsonSchema)
+	})
+
+	t.Run("RunQueries", func(t *testing.T) {
+		QueryLogStreamCount(t, NewGlob.QueryClient, stream1, 50)
+		AssertQueryOK(t, NewGlob.QueryClient, "SELECT * FROM %s", stream1)
+		AssertQueryOK(t, NewGlob.QueryClient, "SELECT * FROM %s OFFSET 25 LIMIT 25", stream1)
+
+		for _, item := range flogStreamFields() {
+			AssertQueryOK(t, NewGlob.QueryClient, "SELECT %s FROM %s", item, stream1)
+		}
+
+		AssertQueryOK(t, NewGlob.QueryClient, "SELECT * FROM %s WHERE method = 'POST'", stream1)
+		AssertQueryOK(t, NewGlob.QueryClient, "SELECT method, COUNT(*) FROM %s GROUP BY method", stream1)
+		AssertQueryOK(t, NewGlob.QueryClient, `SELECT DATE_TRUNC('minute', p_timestamp) as minute, COUNT(*) FROM %s GROUP BY minute`, stream1)
+	})
+
+	t.Run("QueryTwoStreams", func(t *testing.T) {
+		QueryTwoLogStreamCount(t, NewGlob.QueryClient, stream1, stream2, 100)
+	})
+
 	DeleteStream(t, NewGlob.QueryClient, stream1)
 	DeleteStream(t, NewGlob.QueryClient, stream2)
 }
 
-func TestSmokeRunQueries(t *testing.T) {
+func TestSmokeLoadWithK6Streams(t *testing.T) {
+	runK6Smoke := func(stream string) {
+		if NewGlob.IngestorUrl.String() == "" {
+			cmd := exec.Command("k6",
+				"run",
+				"-e", fmt.Sprintf("P_URL=%s", NewGlob.QueryUrl.String()),
+				"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
+				"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
+				"-e", fmt.Sprintf("P_STREAM=%s", stream),
+				"./scripts/smoke.js")
+
+			cmd.Run()
+			cmd.Output()
+		} else {
+			cmd := exec.Command("k6",
+				"run",
+				"-e", fmt.Sprintf("P_URL=%s", NewGlob.IngestorUrl.String()),
+				"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
+				"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
+				"-e", fmt.Sprintf("P_STREAM=%s", stream),
+				"./scripts/smoke.js")
+
+			cmd.Run()
+			cmd.Output()
+		}
+	}
+
 	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
-	if NewGlob.IngestorUrl.String() == "" {
-		RunFlog(t, NewGlob.QueryClient, NewGlob.Stream)
-	} else {
-		RunFlog(t, NewGlob.IngestorClient, NewGlob.Stream)
-	}
-	time.Sleep(120 * time.Second)
-	// test count
-	QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 50)
-	// test yeild all values
-	AssertQueryOK(t, NewGlob.QueryClient, "SELECT * FROM %s", NewGlob.Stream)
-	AssertQueryOK(t, NewGlob.QueryClient, "SELECT * FROM %s OFFSET 25 LIMIT 25", NewGlob.Stream)
-	// test fetch single column
-	for _, item := range flogStreamFields() {
-		AssertQueryOK(t, NewGlob.QueryClient, "SELECT %s FROM %s", item, NewGlob.Stream)
-	}
-	// test basic filter
-	AssertQueryOK(t, NewGlob.QueryClient, "SELECT * FROM %s WHERE method = 'POST'", NewGlob.Stream)
-	// test group by
-	AssertQueryOK(t, NewGlob.QueryClient, "SELECT method, COUNT(*) FROM %s GROUP BY method", NewGlob.Stream)
-	AssertQueryOK(t, NewGlob.QueryClient, `SELECT DATE_TRUNC('minute', p_timestamp) as minute, COUNT(*) FROM %s GROUP BY minute`, NewGlob.Stream)
+	runK6Smoke(NewGlob.Stream)
 
-	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
-}
+	customPartitionStream := NewGlob.Stream + "custompartition"
+	customHeader := map[string]string{"X-P-Custom-Partition": "level"}
+	CreateStreamWithHeader(t, NewGlob.QueryClient, customPartitionStream, customHeader)
+	runK6Smoke(customPartitionStream)
 
-func TestSmokeLoadWithK6Stream(t *testing.T) {
-	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
-	if NewGlob.IngestorUrl.String() == "" {
-		cmd := exec.Command("k6",
-			"run",
-			"-e", fmt.Sprintf("P_URL=%s", NewGlob.QueryUrl.String()),
-			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
-			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
-			"-e", fmt.Sprintf("P_STREAM=%s", NewGlob.Stream),
-			"./scripts/smoke.js")
-
-		cmd.Run()
-		cmd.Output()
-	} else {
-		cmd := exec.Command("k6",
-			"run",
-			"-e", fmt.Sprintf("P_URL=%s", NewGlob.IngestorUrl.String()),
-			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
-			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
-			"-e", fmt.Sprintf("P_STREAM=%s", NewGlob.Stream),
-			"./scripts/smoke.js")
-
-		cmd.Run()
-		cmd.Output()
-	}
 	time.Sleep(150 * time.Second)
-	QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 20000)
-	AssertStreamSchema(t, NewGlob.QueryClient, NewGlob.Stream, SchemaBody)
+
+	t.Run("LoadWithK6Stream", func(t *testing.T) {
+		QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 20000)
+		AssertStreamSchema(t, NewGlob.QueryClient, NewGlob.Stream, SchemaBody)
+	})
+
+	t.Run("Load_CustomPartition_WithK6Stream", func(t *testing.T) {
+		QueryLogStreamCount(t, NewGlob.QueryClient, customPartitionStream, 20000)
+	})
+
 	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	DeleteStream(t, NewGlob.QueryClient, customPartitionStream)
 }
 
 // func TestSmokeLoad_TimePartition_WithK6Stream(t *testing.T) {
@@ -309,38 +313,6 @@ func TestSmokeLoadWithK6Stream(t *testing.T) {
 // 	QueryLogStreamCount_Historical(t, NewGlob.QueryClient, time_partition_stream, 20000)
 // 	DeleteStream(t, NewGlob.QueryClient, time_partition_stream)
 // }
-
-func TestSmokeLoad_CustomPartition_WithK6Stream(t *testing.T) {
-	custom_partition_stream := NewGlob.Stream + "custompartition"
-	customHeader := map[string]string{"X-P-Custom-Partition": "level"}
-	CreateStreamWithHeader(t, NewGlob.QueryClient, custom_partition_stream, customHeader)
-	if NewGlob.IngestorUrl.String() == "" {
-		cmd := exec.Command("k6",
-			"run",
-			"-e", fmt.Sprintf("P_URL=%s", NewGlob.QueryUrl.String()),
-			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
-			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
-			"-e", fmt.Sprintf("P_STREAM=%s", custom_partition_stream),
-			"./scripts/smoke.js")
-
-		cmd.Run()
-		cmd.Output()
-	} else {
-		cmd := exec.Command("k6",
-			"run",
-			"-e", fmt.Sprintf("P_URL=%s", NewGlob.IngestorUrl.String()),
-			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
-			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
-			"-e", fmt.Sprintf("P_STREAM=%s", custom_partition_stream),
-			"./scripts/smoke.js")
-
-		cmd.Run()
-		cmd.Output()
-	}
-	time.Sleep(120 * time.Second)
-	QueryLogStreamCount(t, NewGlob.QueryClient, custom_partition_stream, 20000)
-	DeleteStream(t, NewGlob.QueryClient, custom_partition_stream)
-}
 
 // func TestSmokeLoad_TimeAndCustomPartition_WithK6Stream(t *testing.T) {
 // 	custom_partition_stream := NewGlob.Stream + "timecustompartition"
@@ -558,48 +530,48 @@ func TestSmokeRoles(t *testing.T) {
 
 func TestLoadStreamBatchWithK6(t *testing.T) {
 	if NewGlob.Mode == "load" {
-		CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+		t.Parallel()
+
+		stream := NewGlob.Stream + "loadbatch"
+		CreateStream(t, NewGlob.QueryClient, stream)
+		t.Cleanup(func() {
+			DeleteStream(t, NewGlob.QueryClient, stream)
+		})
 		if NewGlob.IngestorUrl.String() == "" {
 			cmd := exec.Command("k6",
 				"run",
+				"--address", "",
+				"--vus", vus,
+				"--duration", duration,
 				"-e", fmt.Sprintf("P_URL=%s", NewGlob.QueryUrl.String()),
 				"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
 				"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
-				"-e", fmt.Sprintf("P_STREAM=%s", NewGlob.Stream),
+				"-e", fmt.Sprintf("P_STREAM=%s", stream),
 				"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
 				"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", events_count),
-				"./scripts/load_batch_events.js",
-				"--vus=", vus,
-				"--duration=", duration)
+				"./scripts/load_batch_events.js")
 
-			cmd.Run()
-			op, err := cmd.Output()
-			if err != nil {
-				t.Log(err)
-			}
+			op, err := cmd.CombinedOutput()
+			require.NoErrorf(t, err, "k6 failed: %s", string(op))
 			t.Log(string(op))
 		} else {
 			cmd := exec.Command("k6",
 				"run",
+				"--address", "",
+				"--vus", vus,
+				"--duration", duration,
 				"-e", fmt.Sprintf("P_URL=%s", NewGlob.IngestorUrl.String()),
 				"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
 				"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
-				"-e", fmt.Sprintf("P_STREAM=%s", NewGlob.Stream),
+				"-e", fmt.Sprintf("P_STREAM=%s", stream),
 				"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
 				"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", events_count),
-				"./scripts/load_batch_events.js",
-				"--vus=", vus,
-				"--duration=", duration)
+				"./scripts/load_batch_events.js")
 
-			cmd.Run()
-			op, err := cmd.Output()
-			if err != nil {
-				t.Log(err)
-			}
+			op, err := cmd.CombinedOutput()
+			require.NoErrorf(t, err, "k6 failed: %s", string(op))
 			t.Log(string(op))
 		}
-		DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
-
 	}
 }
 
@@ -653,90 +625,94 @@ func TestLoadStreamBatchWithK6(t *testing.T) {
 // }
 
 func TestLoadStreamBatchWithCustomPartitionWithK6(t *testing.T) {
-	customPartitionStream := NewGlob.Stream + "custompartition"
+	if NewGlob.Mode != "load" {
+		return
+	}
+	t.Parallel()
+
+	customPartitionStream := NewGlob.Stream + "loadbatchcustompartition"
 	customHeader := map[string]string{"X-P-Custom-Partition": "level"}
 	CreateStreamWithHeader(t, NewGlob.QueryClient, customPartitionStream, customHeader)
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.QueryClient, customPartitionStream)
+	})
 	if NewGlob.IngestorUrl.String() == "" {
 		cmd := exec.Command("k6",
 			"run",
+			"--address", "",
+			"--vus", vus,
+			"--duration", duration,
 			"-e", fmt.Sprintf("P_URL=%s", NewGlob.QueryUrl.String()),
 			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
 			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
 			"-e", fmt.Sprintf("P_STREAM=%s", customPartitionStream),
 			"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
 			"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", events_count),
-			"./scripts/load_batch_events.js",
-			"--vus=", vus,
-			"--duration=", duration)
+			"./scripts/load_batch_events.js")
 
-		cmd.Run()
-		op, err := cmd.Output()
-		if err != nil {
-			t.Log(err)
-		}
+		op, err := cmd.CombinedOutput()
+		require.NoErrorf(t, err, "k6 failed: %s", string(op))
 		t.Log(string(op))
 	} else {
 		cmd := exec.Command("k6",
 			"run",
+			"--address", "",
+			"--vus", vus,
+			"--duration", duration,
 			"-e", fmt.Sprintf("P_URL=%s", NewGlob.IngestorUrl.String()),
 			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
 			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
 			"-e", fmt.Sprintf("P_STREAM=%s", customPartitionStream),
 			"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
 			"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", events_count),
-			"./scripts/load_batch_events.js",
-			"--vus=", vus,
-			"--duration=", duration)
+			"./scripts/load_batch_events.js")
 
-		cmd.Run()
-		op, err := cmd.Output()
-		if err != nil {
-			t.Log(err)
-		}
+		op, err := cmd.CombinedOutput()
+		require.NoErrorf(t, err, "k6 failed: %s", string(op))
 		t.Log(string(op))
 	}
-
-	DeleteStream(t, NewGlob.QueryClient, customPartitionStream)
 }
 
 func TestLoadStreamNoBatchWithK6(t *testing.T) {
 	if NewGlob.Mode == "load" {
-		CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+		t.Parallel()
+
+		stream := NewGlob.Stream + "loadsingle"
+		CreateStream(t, NewGlob.QueryClient, stream)
+		t.Cleanup(func() {
+			DeleteStream(t, NewGlob.QueryClient, stream)
+		})
 		if NewGlob.IngestorUrl.String() == "" {
 			cmd := exec.Command("k6",
 				"run",
+				"--address", "",
+				"--vus", vus,
+				"--duration", duration,
 				"-e", fmt.Sprintf("P_URL=%s", NewGlob.QueryUrl.String()),
 				"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
 				"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
-				"-e", fmt.Sprintf("P_STREAM=%s", NewGlob.Stream),
+				"-e", fmt.Sprintf("P_STREAM=%s", stream),
 				"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
-				"./scripts/load_single_events.js",
-				"--vus=", vus,
-				"--duration=", duration)
+				"./scripts/load_single_event.js")
 
-			cmd.Run()
-			op, err := cmd.Output()
-			if err != nil {
-				t.Log(err)
-			}
+			op, err := cmd.CombinedOutput()
+			require.NoErrorf(t, err, "k6 failed: %s", string(op))
 			t.Log(string(op))
 		} else {
 			cmd := exec.Command("k6",
 				"run",
+				"--address", "",
+				"--vus", vus,
+				"--duration", duration,
 				"-e", fmt.Sprintf("P_URL=%s", NewGlob.IngestorUrl.String()),
 				"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
 				"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
-				"-e", fmt.Sprintf("P_STREAM=%s", NewGlob.Stream),
+				"-e", fmt.Sprintf("P_STREAM=%s", stream),
 				"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
-				"./scripts/load_single_events.js",
-				"--vus=", vus,
-				"--duration=", duration)
+				"./scripts/load_single_event.js")
 
-			cmd.Run()
-			op, err := cmd.Output()
-			if err != nil {
-				t.Log(err)
-			}
+			op, err := cmd.CombinedOutput()
+			require.NoErrorf(t, err, "k6 failed: %s", string(op))
 			t.Log(string(op))
 		}
 
@@ -791,50 +767,48 @@ func TestLoadStreamNoBatchWithK6(t *testing.T) {
 // }
 
 func TestLoadStreamNoBatchWithCustomPartitionWithK6(t *testing.T) {
-	customPartitionStream := NewGlob.Stream + "custompartition"
+	if NewGlob.Mode != "load" {
+		return
+	}
+	t.Parallel()
+
+	customPartitionStream := NewGlob.Stream + "loadsinglecustompartition"
 	customHeader := map[string]string{"X-P-Custom-Partition": "level"}
 	CreateStreamWithHeader(t, NewGlob.QueryClient, customPartitionStream, customHeader)
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.QueryClient, customPartitionStream)
+	})
 	if NewGlob.IngestorUrl.String() == "" {
 		cmd := exec.Command("k6",
 			"run",
+			"--address", "",
+			"--vus", vus,
+			"--duration", duration,
 			"-e", fmt.Sprintf("P_URL=%s", NewGlob.QueryUrl.String()),
 			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
 			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
 			"-e", fmt.Sprintf("P_STREAM=%s", customPartitionStream),
 			"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
-			"./scripts/load_single_events.js",
-			"--vus=", vus,
-			"--duration=", duration)
+			"./scripts/load_single_event.js")
 
-		cmd.Run()
-		op, err := cmd.Output()
-		if err != nil {
-			t.Log(err)
-		}
+		op, err := cmd.CombinedOutput()
+		require.NoErrorf(t, err, "k6 failed: %s", string(op))
 		t.Log(string(op))
 	} else {
 		cmd := exec.Command("k6",
 			"run",
+			"--address", "",
+			"--vus", vus,
+			"--duration", duration,
 			"-e", fmt.Sprintf("P_URL=%s", NewGlob.IngestorUrl.String()),
 			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
 			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
 			"-e", fmt.Sprintf("P_STREAM=%s", customPartitionStream),
 			"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
-			"./scripts/load_single_events.js",
-			"--vus=", vus,
-			"--duration=", duration)
+			"./scripts/load_single_event.js")
 
-		cmd.Run()
-		op, err := cmd.Output()
-		if err != nil {
-			t.Log(err)
-		}
+		op, err := cmd.CombinedOutput()
+		require.NoErrorf(t, err, "k6 failed: %s", string(op))
 		t.Log(string(op))
 	}
-
-	DeleteStream(t, NewGlob.QueryClient, customPartitionStream)
-}
-
-func TestDeleteStream(t *testing.T) {
-	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
