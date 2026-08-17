@@ -19,9 +19,9 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -35,8 +35,19 @@ const (
 	events_count = "5"
 )
 
+// The default role is server-wide state. RBAC tests are still scheduled as
+// parallel tests, but their short user/role mutations must not overlap.
+var rbacMu sync.Mutex
+
+var k6Mu sync.RWMutex
+
 func TestSmokeListLogStream(t *testing.T) {
-	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	t.Parallel()
+	streamName := NewGlob.Stream + "list"
+	CreateStream(t, NewGlob.QueryClient, streamName)
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.QueryClient, streamName)
+	})
 	req, err := NewGlob.QueryClient.NewRequest("GET", "logstream", nil)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 
@@ -45,23 +56,25 @@ func TestSmokeListLogStream(t *testing.T) {
 
 	body := readAsString(response.Body)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status)
-	res, err := readJsonBody[[]string](bytes.NewBufferString(body))
-	if err != nil {
-		for _, stream := range res {
-			if stream == NewGlob.Stream {
-				DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
-			}
-		}
+	type streamInfo struct {
+		Name string `json:"name"`
 	}
-	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	res, err := readJsonBody[[]streamInfo](bytes.NewBufferString(body))
+	require.NoError(t, err)
+	require.Contains(t, res, streamInfo{Name: streamName})
 }
 
 func TestSmokeCreateStream(t *testing.T) {
-	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
-	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	t.Parallel()
+	stream := NewGlob.Stream + "create"
+	CreateStream(t, NewGlob.QueryClient, stream)
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.QueryClient, stream)
+	})
 }
 
 func TestSmokeDetectSchema(t *testing.T) {
+	t.Parallel()
 	DetectSchema(t, NewGlob.QueryClient, SampleJson, SchemaBody)
 }
 
@@ -102,15 +115,18 @@ func TestSmokeDetectSchema(t *testing.T) {
 // }
 
 func TestLoadStream_StaticSchema_EventWithSameFields(t *testing.T) {
-	staticSchemaStream := NewGlob.Stream + "staticschema"
+	t.Parallel()
+	staticSchemaStream := NewGlob.Stream + "staticschemasame"
 	staticSchemaFlagHeader := map[string]string{"X-P-Static-Schema-Flag": "true"}
 	CreateStreamWithSchemaBody(t, NewGlob.QueryClient, staticSchemaStream, staticSchemaFlagHeader, SchemaPayload)
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.QueryClient, staticSchemaStream)
+	})
 	if NewGlob.IngestorUrl.String() == "" {
 		IngestOneEventForStaticSchemaStream_SameFieldsInLog(t, NewGlob.QueryClient, staticSchemaStream)
 	} else {
 		IngestOneEventForStaticSchemaStream_SameFieldsInLog(t, NewGlob.IngestorClient, staticSchemaStream)
 	}
-	DeleteStream(t, NewGlob.QueryClient, staticSchemaStream)
 }
 
 func TestLoadStreamBatchWithK6_StaticSchema(t *testing.T) {
@@ -137,9 +153,7 @@ func TestLoadStreamBatchWithK6_StaticSchema(t *testing.T) {
 				"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", events_count),
 				"./scripts/load_batch_events.js")
 
-			op, err := cmd.CombinedOutput()
-			require.NoErrorf(t, err, "k6 failed: %s", string(op))
-			t.Log(string(op))
+			runK6Load(t, cmd)
 		} else {
 			cmd := exec.Command("k6",
 				"run",
@@ -154,43 +168,53 @@ func TestLoadStreamBatchWithK6_StaticSchema(t *testing.T) {
 				"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", events_count),
 				"./scripts/load_batch_events.js")
 
-			op, err := cmd.CombinedOutput()
-			require.NoErrorf(t, err, "k6 failed: %s", string(op))
-			t.Log(string(op))
+			runK6Load(t, cmd)
 		}
 	}
 }
 
 func TestLoadStream_StaticSchema_EventWithNewField(t *testing.T) {
-	staticSchemaStream := NewGlob.Stream + "staticschema"
+	t.Parallel()
+	staticSchemaStream := NewGlob.Stream + "staticschemanew"
 	staticSchemaFlagHeader := map[string]string{"X-P-Static-Schema-Flag": "true"}
 	CreateStreamWithSchemaBody(t, NewGlob.QueryClient, staticSchemaStream, staticSchemaFlagHeader, SchemaPayload)
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.QueryClient, staticSchemaStream)
+	})
 	if NewGlob.IngestorUrl.String() == "" {
 		IngestOneEventForStaticSchemaStream_NewFieldInLog(t, NewGlob.QueryClient, staticSchemaStream)
 	} else {
 		IngestOneEventForStaticSchemaStream_NewFieldInLog(t, NewGlob.IngestorClient, staticSchemaStream)
 	}
-	DeleteStream(t, NewGlob.QueryClient, staticSchemaStream)
 }
 
 func TestCreateStream_WithCustomPartition_Success(t *testing.T) {
-	customPartitionStream := NewGlob.Stream + "custompartition"
+	t.Parallel()
+	customPartitionStream := NewGlob.Stream + "custompartitionsuccess"
 	customHeader := map[string]string{"X-P-Custom-Partition": "level"}
 	CreateStreamWithHeader(t, NewGlob.QueryClient, customPartitionStream, customHeader)
-	DeleteStream(t, NewGlob.QueryClient, customPartitionStream)
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.QueryClient, customPartitionStream)
+	})
 }
 
 func TestCreateStream_WithCustomPartition_Error(t *testing.T) {
-	customPartitionStream := NewGlob.Stream + "custompartition"
+	t.Parallel()
+	customPartitionStream := NewGlob.Stream + "custompartitionerror"
 	customHeader := map[string]string{"X-P-Custom-Partition": "level,os"}
 	CreateStreamWithCustompartitionError(t, NewGlob.QueryClient, customPartitionStream, customHeader)
 }
 
 func TestSmokeIngestAndQuery(t *testing.T) {
-	stream1 := NewGlob.Stream + "1"
-	stream2 := NewGlob.Stream + "2"
+	t.Parallel()
+	stream1 := NewGlob.Stream + "ingestquery1"
+	stream2 := NewGlob.Stream + "ingestquery2"
 	CreateStream(t, NewGlob.QueryClient, stream1)
 	CreateStream(t, NewGlob.QueryClient, stream2)
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.QueryClient, stream1)
+		DeleteStream(t, NewGlob.QueryClient, stream2)
+	})
 
 	if NewGlob.IngestorUrl.String() == "" {
 		RunFlog(t, NewGlob.QueryClient, stream1)
@@ -228,58 +252,85 @@ func TestSmokeIngestAndQuery(t *testing.T) {
 		QueryTwoLogStreamCount(t, NewGlob.QueryClient, stream1, stream2, 100)
 	})
 
-	DeleteStream(t, NewGlob.QueryClient, stream1)
-	DeleteStream(t, NewGlob.QueryClient, stream2)
 }
 
 func TestSmokeLoadWithK6Streams(t *testing.T) {
-	runK6Smoke := func(stream string) {
-		if NewGlob.IngestorUrl.String() == "" {
-			cmd := exec.Command("k6",
-				"run",
-				"-e", fmt.Sprintf("P_URL=%s", NewGlob.QueryUrl.String()),
-				"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
-				"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
-				"-e", fmt.Sprintf("P_STREAM=%s", stream),
-				"./scripts/smoke.js")
+	t.Parallel()
+	stream := NewGlob.Stream + "smokeload"
+	CreateStream(t, NewGlob.QueryClient, stream)
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.QueryClient, stream)
+	})
+	runK6Smoke(t, stream)
 
-			cmd.Run()
-			cmd.Output()
-		} else {
-			cmd := exec.Command("k6",
-				"run",
-				"-e", fmt.Sprintf("P_URL=%s", NewGlob.IngestorUrl.String()),
-				"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
-				"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
-				"-e", fmt.Sprintf("P_STREAM=%s", stream),
-				"./scripts/smoke.js")
-
-			cmd.Run()
-			cmd.Output()
-		}
-	}
-
-	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
-	runK6Smoke(NewGlob.Stream)
-
-	customPartitionStream := NewGlob.Stream + "custompartition"
+	customPartitionStream := NewGlob.Stream + "smokeloadcustompartition"
 	customHeader := map[string]string{"X-P-Custom-Partition": "level"}
 	CreateStreamWithHeader(t, NewGlob.QueryClient, customPartitionStream, customHeader)
-	runK6Smoke(customPartitionStream)
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.QueryClient, customPartitionStream)
+	})
+	runK6Smoke(t, customPartitionStream)
 
 	time.Sleep(150 * time.Second)
 
 	t.Run("LoadWithK6Stream", func(t *testing.T) {
-		QueryLogStreamCount(t, NewGlob.QueryClient, NewGlob.Stream, 20000)
-		AssertStreamSchema(t, NewGlob.QueryClient, NewGlob.Stream, SchemaBody)
+		QueryLogStreamCount(t, NewGlob.QueryClient, stream, 20000)
+		AssertStreamSchema(t, NewGlob.QueryClient, stream, SchemaBody)
 	})
 
 	t.Run("Load_CustomPartition_WithK6Stream", func(t *testing.T) {
 		QueryLogStreamCount(t, NewGlob.QueryClient, customPartitionStream, 20000)
 	})
 
-	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
-	DeleteStream(t, NewGlob.QueryClient, customPartitionStream)
+}
+
+func runK6Smoke(t *testing.T, stream string) {
+	t.Helper()
+	k6Mu.Lock()
+	defer k6Mu.Unlock()
+	url := NewGlob.QueryUrl.String()
+	username := NewGlob.QueryUsername
+	password := NewGlob.QueryPassword
+	if NewGlob.IngestorUrl.String() != "" {
+		url = NewGlob.IngestorUrl.String()
+		username = NewGlob.IngestorUsername
+		password = NewGlob.IngestorPassword
+	}
+
+	cmd := exec.Command("k6",
+		"run",
+		"--address", "",
+		"-e", fmt.Sprintf("P_URL=%s", url),
+		"-e", fmt.Sprintf("P_USERNAME=%s", username),
+		"-e", fmt.Sprintf("P_PASSWORD=%s", password),
+		"-e", fmt.Sprintf("P_STREAM=%s", stream),
+		"./scripts/smoke.js")
+
+	op, err := cmd.CombinedOutput()
+	require.NoErrorf(t, err, "k6 failed: %s", string(op))
+	t.Log(string(op))
+}
+
+func runK6Load(t *testing.T, cmd *exec.Cmd) {
+	t.Helper()
+	k6Mu.RLock()
+	defer k6Mu.RUnlock()
+	op, err := cmd.CombinedOutput()
+	require.NoErrorf(t, err, "k6 failed: %s", string(op))
+	t.Log(string(op))
+}
+
+func ingestAlertFixture(t *testing.T, stream string) {
+	t.Helper()
+	client := NewGlob.QueryClient
+	if NewGlob.IngestorUrl.String() != "" {
+		client = NewGlob.IngestorClient
+	}
+	req, _ := client.NewRequest("POST", "ingest", strings.NewReader(`[{"level":"info"}]`))
+	req.Header.Add("X-P-Stream", stream)
+	response, err := client.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 }
 
 // func TestSmokeLoad_TimePartition_WithK6Stream(t *testing.T) {
@@ -346,157 +397,260 @@ func TestSmokeLoadWithK6Streams(t *testing.T) {
 // 	DeleteStream(t, NewGlob.QueryClient, custom_partition_stream)
 // }
 
-func TestSmokeSetTarget(t *testing.T) {
-	body := getTargetBody()
+type testTargetResponse struct {
+	Target struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"target"`
+}
+
+type testAlertResponse struct {
+	Severity  string   `json:"severity"`
+	Title     string   `json:"title"`
+	ID        string   `json:"id"`
+	State     string   `json:"state"`
+	AlertType string   `json:"alertType"`
+	Tags      []string `json:"tags"`
+	Created   string   `json:"created"`
+	Datasets  []string `json:"datasets"`
+}
+
+func createTestTarget(t *testing.T, name string) string {
+	t.Helper()
+	body := fmt.Sprintf(`{
+		"name": %q,
+		"type": "webhook",
+		"endpoint": "https://webhook.site/ec627445-d52b-44e9-948d-56671df3581e",
+		"headers": {},
+		"skipTlsCheck": false
+	}`, name)
 	req, _ := NewGlob.QueryClient.NewRequest("POST", "/targets", strings.NewReader(body))
 	response, err := NewGlob.QueryClient.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+
+	req, _ = NewGlob.QueryClient.NewRequest("GET", "/targets", nil)
+	response, err = NewGlob.QueryClient.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	targets, err := readJsonBody[[]testTargetResponse](response.Body)
+	require.NoError(t, err)
+	for _, target := range targets {
+		if target.Target.Name == name {
+			return target.Target.ID
+		}
+	}
+	t.Fatalf("target %q was not returned by GET /targets", name)
+	return ""
+}
+
+func createTestAlert(t *testing.T, stream, targetID, title string) string {
+	t.Helper()
+	body := strings.Replace(getAlertBody(stream, targetID), `"title": "AlertTitle"`, fmt.Sprintf(`"title": %q`, title), 1)
+	req, _ := NewGlob.QueryClient.NewRequest("POST", "/alerts", strings.NewReader(body))
+	response, err := NewGlob.QueryClient.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+
+	alert := getTestAlert(t, title)
+	return alert.ID
+}
+
+func getTestAlert(t *testing.T, title string) testAlertResponse {
+	t.Helper()
+	req, _ := NewGlob.QueryClient.NewRequest("GET", "/alerts", nil)
+	response, err := NewGlob.QueryClient.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	require.Equal(t, 200, response.StatusCode)
+	alerts, err := readJsonBody[[]testAlertResponse](response.Body)
+	require.NoError(t, err)
+	for _, alert := range alerts {
+		if alert.Title == title {
+			return alert
+		}
+	}
+	t.Fatalf("alert %q was not returned by GET /alerts", title)
+	return testAlertResponse{}
+}
+
+func TestSmokeSetTarget(t *testing.T) {
+	t.Parallel()
+	targetID := createTestTarget(t, NewGlob.Stream+"settarget")
+	t.Cleanup(func() {
+		DeleteTarget(t, NewGlob.QueryClient, targetID)
+	})
 }
 
 func TestSmokeSetAlert(t *testing.T) {
-	stream := NewGlob.Stream + "alert_testing"
+	t.Parallel()
+	stream := NewGlob.Stream + "setalert"
 	CreateStream(t, NewGlob.QueryClient, stream)
-	if NewGlob.IngestorUrl.String() == "" {
-		cmd := exec.Command("k6",
-			"run",
-			"-e", fmt.Sprintf("P_URL=%s", NewGlob.QueryUrl.String()),
-			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
-			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
-			"-e", fmt.Sprintf("P_STREAM=%s", stream),
-			"./scripts/smoke.js")
-
-		cmd.Run()
-		cmd.Output()
-	} else {
-		cmd := exec.Command("k6",
-			"run",
-			"-e", fmt.Sprintf("P_URL=%s", NewGlob.IngestorUrl.String()),
-			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
-			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
-			"-e", fmt.Sprintf("P_STREAM=%s", stream),
-			"./scripts/smoke.js")
-
-		cmd.Run()
-		cmd.Output()
-	}
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.QueryClient, stream)
+	})
+	runK6Smoke(t, stream)
 	time.Sleep(120 * time.Second)
-	req, _ := NewGlob.QueryClient.NewRequest("GET", "/targets", nil)
-	response, err := NewGlob.QueryClient.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	bodyTargets, _ := io.ReadAll(response.Body)
-	reader1 := bytes.NewReader(bodyTargets)
-	targetId := getIdFromTargetResponse(reader1)
-	body := getAlertBody(stream, targetId)
-	req, _ = NewGlob.QueryClient.NewRequest("POST", "/alerts", strings.NewReader(body))
-	response, err = NewGlob.QueryClient.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+	targetID := createTestTarget(t, NewGlob.Stream+"setalerttarget")
+	t.Cleanup(func() {
+		DeleteTarget(t, NewGlob.QueryClient, targetID)
+	})
+	alertID := createTestAlert(t, stream, targetID, NewGlob.Stream+"setalerttitle")
+	t.Cleanup(func() {
+		DeleteAlert(t, NewGlob.QueryClient, alertID)
+	})
 }
 
 func TestSmokeGetAlert(t *testing.T) {
-	stream := NewGlob.Stream + "alert_testing"
-	req, _ := NewGlob.QueryClient.NewRequest("GET", "/targets", nil)
-	response, err := NewGlob.QueryClient.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	bodyTargets, _ := io.ReadAll(response.Body)
-	reader1 := bytes.NewReader(bodyTargets)
-	targetId := getIdFromTargetResponse(reader1)
-	req, _ = NewGlob.QueryClient.NewRequest("GET", "/alerts", nil)
-	response, err = NewGlob.QueryClient.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	body, _ := io.ReadAll(response.Body)
-	reader1 = bytes.NewReader(body)
-	reader2 := bytes.NewReader(body)
-	expected := readAsString(reader1)
-	id, state, created, datasets := getMetadataFromAlertResponse(reader2)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
-	res := createAlertResponse(id, state, created, datasets)
-	require.JSONEq(t, expected, res, "Get alert response doesn't match with Alert config returned")
-	DeleteAlert(t, NewGlob.QueryClient, id)
-	DeleteTarget(t, NewGlob.QueryClient, targetId)
-	DeleteStream(t, NewGlob.QueryClient, stream)
+	t.Parallel()
+	stream := NewGlob.Stream + "getalert"
+	title := NewGlob.Stream + "getalerttitle"
+	CreateStream(t, NewGlob.QueryClient, stream)
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.QueryClient, stream)
+	})
+	ingestAlertFixture(t, stream)
+	time.Sleep(120 * time.Second)
+	targetID := createTestTarget(t, NewGlob.Stream+"getalerttarget")
+	t.Cleanup(func() {
+		DeleteTarget(t, NewGlob.QueryClient, targetID)
+	})
+	alertID := createTestAlert(t, stream, targetID, title)
+	t.Cleanup(func() {
+		DeleteAlert(t, NewGlob.QueryClient, alertID)
+	})
+
+	alert := getTestAlert(t, title)
+	require.Equal(t, alertID, alert.ID)
+	require.Equal(t, title, alert.Title)
+	require.Equal(t, "threshold", alert.AlertType)
+	require.Equal(t, "Medium", alert.Severity)
+	require.Equal(t, []string{stream}, alert.Datasets)
+	require.NotEmpty(t, alert.State)
+	require.NotEmpty(t, alert.Created)
 }
 
 func TestSmokeSetRetention(t *testing.T) {
-	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
-	req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+NewGlob.Stream+"/retention", strings.NewReader(RetentionBody))
+	t.Parallel()
+	stream := NewGlob.Stream + "setretention"
+	CreateStream(t, NewGlob.QueryClient, stream)
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.QueryClient, stream)
+	})
+	req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+stream+"/retention", strings.NewReader(RetentionBody))
 	response, err := NewGlob.QueryClient.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 }
 
 func TestSmokeGetRetention(t *testing.T) {
-	req, _ := NewGlob.QueryClient.NewRequest("GET", "logstream/"+NewGlob.Stream+"/retention", nil)
+	t.Parallel()
+	stream := NewGlob.Stream + "getretention"
+	CreateStream(t, NewGlob.QueryClient, stream)
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.QueryClient, stream)
+	})
+
+	req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+stream+"/retention", strings.NewReader(RetentionBody))
 	response, err := NewGlob.QueryClient.Do(req)
+	require.NoErrorf(t, err, "Request failed: %s", err)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+
+	req, _ = NewGlob.QueryClient.NewRequest("GET", "logstream/"+stream+"/retention", nil)
+	response, err = NewGlob.QueryClient.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	body := readAsString(response.Body)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
 	require.JSONEq(t, RetentionBody, body, "Get retention response doesn't match with retention config returned")
-	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
 // This test calls all the User API endpoints
 // in a sequence to check if they work as expected.
 func TestSmoke_AllUsersAPI(t *testing.T) {
-	CreateRole(t, NewGlob.QueryClient, "dummyrole", dummyRole)
-	AssertRole(t, NewGlob.QueryClient, "dummyrole", dummyRole)
+	t.Parallel()
+	rbacMu.Lock()
+	defer rbacMu.Unlock()
 
-	CreateUser(t, NewGlob.QueryClient, "dummyuser")
-	CreateUserWithRole(t, NewGlob.QueryClient, "dummyanotheruser", []string{"dummyrole"})
-	AssertUserRole(t, NewGlob.QueryClient, "dummyanotheruser", "dummyrole", dummyRole)
-	RegenPassword(t, NewGlob.QueryClient, "dummyuser")
-	DeleteUser(t, NewGlob.QueryClient, "dummyuser")
-	DeleteUser(t, NewGlob.QueryClient, "dummyanotheruser")
-	DeleteRole(t, NewGlob.QueryClient, "dummyrole")
+	role := NewGlob.Stream + "allusersrole"
+	user := NewGlob.Stream + "allusers"
+	userWithRole := NewGlob.Stream + "alluserswithrole"
+	CreateRole(t, NewGlob.QueryClient, role, dummyRole)
+	AssertRole(t, NewGlob.QueryClient, role, dummyRole)
+
+	CreateUser(t, NewGlob.QueryClient, user)
+	CreateUserWithRole(t, NewGlob.QueryClient, userWithRole, []string{role})
+	AssertUserRole(t, NewGlob.QueryClient, userWithRole, role, dummyRole)
+	RegenPassword(t, NewGlob.QueryClient, user)
+	DeleteUser(t, NewGlob.QueryClient, user)
+	DeleteUser(t, NewGlob.QueryClient, userWithRole)
+	DeleteRole(t, NewGlob.QueryClient, role)
 }
 
 // This test checks that a new user doesn't get any role by default
 // even if a default role is set.
 func TestSmoke_NewUserNoRole(t *testing.T) {
-	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	t.Parallel()
+	rbacMu.Lock()
+	defer rbacMu.Unlock()
 
-	CreateRole(t, NewGlob.QueryClient, "dummyrole", dummyRole)
-	SetDefaultRole(t, NewGlob.QueryClient, "dummyrole")
-	AssertDefaultRole(t, NewGlob.QueryClient, "\"dummyrole\"")
+	stream := NewGlob.Stream + "newusernorole"
+	role := NewGlob.Stream + "defaultrole"
+	user := NewGlob.Stream + "newuser"
+	CreateStream(t, NewGlob.QueryClient, stream)
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.QueryClient, stream)
+	})
 
-	CreateUser(t, NewGlob.QueryClient, "dummyuser")
-	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	CreateRole(t, NewGlob.QueryClient, role, dummyRole)
+	SetDefaultRole(t, NewGlob.QueryClient, role)
+	AssertDefaultRole(t, NewGlob.QueryClient, fmt.Sprintf("%q", role))
+
+	CreateUser(t, NewGlob.QueryClient, user)
 }
 
 func TestSmokeRbacBasic(t *testing.T) {
-	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
-	CreateRole(t, NewGlob.QueryClient, "dummy", dummyRole)
-	AssertRole(t, NewGlob.QueryClient, "dummy", dummyRole)
-	CreateUserWithRole(t, NewGlob.QueryClient, "dummy", []string{"dummy"})
+	t.Parallel()
+	rbacMu.Lock()
+	defer rbacMu.Unlock()
+
+	stream := NewGlob.Stream + "rbacbasic"
+	role := NewGlob.Stream + "rbacbasicrole"
+	user := NewGlob.Stream + "rbacbasicuser"
+	CreateStream(t, NewGlob.QueryClient, stream)
+	CreateRole(t, NewGlob.QueryClient, role, dummyRole)
+	AssertRole(t, NewGlob.QueryClient, role, dummyRole)
+	CreateUserWithRole(t, NewGlob.QueryClient, user, []string{role})
 	userClient := NewGlob.QueryClient
-	userClient.Username = "dummy"
-	userClient.Password = RegenPassword(t, NewGlob.QueryClient, "dummy")
-	checkAPIAccess(t, userClient, NewGlob.QueryClient, NewGlob.Stream, "editor")
-	DeleteUser(t, NewGlob.QueryClient, "dummy")
-	DeleteRole(t, NewGlob.QueryClient, "dummy")
+	userClient.Username = user
+	userClient.Password = RegenPassword(t, NewGlob.QueryClient, user)
+	checkAPIAccess(t, userClient, NewGlob.QueryClient, stream, "editor")
+	DeleteUser(t, NewGlob.QueryClient, user)
+	DeleteRole(t, NewGlob.QueryClient, role)
 }
 
 func TestSmokeRoles(t *testing.T) {
-	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	t.Parallel()
+	rbacMu.Lock()
+	defer rbacMu.Unlock()
+
+	stream := NewGlob.Stream + "roles"
+	CreateStream(t, NewGlob.QueryClient, stream)
 	cases := []struct {
 		roleName string
 		body     string
 	}{
 		{
-			roleName: "ingestor",
-			body:     Roleingestor(NewGlob.Stream),
+			roleName: NewGlob.Stream + "ingestor",
+			body:     Roleingestor(stream),
 		},
 		{
-			roleName: "reader",
-			body:     RoleReader(NewGlob.Stream),
+			roleName: NewGlob.Stream + "reader",
+			body:     RoleReader(stream),
 		},
 		{
-			roleName: "writer",
-			body:     RoleWriter(NewGlob.Stream),
+			roleName: NewGlob.Stream + "writer",
+			body:     RoleWriter(stream),
 		},
 		{
-			roleName: "editor",
+			roleName: NewGlob.Stream + "editor",
 			body:     RoleEditor,
 		},
 	}
@@ -521,7 +675,8 @@ func TestSmokeRoles(t *testing.T) {
 				ingestClient.Password = password
 			}
 
-			checkAPIAccess(t, queryClient, ingestClient, NewGlob.Stream, tc.roleName)
+			roleKind := strings.TrimPrefix(tc.roleName, NewGlob.Stream)
+			checkAPIAccess(t, queryClient, ingestClient, stream, roleKind)
 			DeleteUser(t, NewGlob.QueryClient, username)
 			DeleteRole(t, NewGlob.QueryClient, tc.roleName)
 		})
@@ -551,9 +706,7 @@ func TestLoadStreamBatchWithK6(t *testing.T) {
 				"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", events_count),
 				"./scripts/load_batch_events.js")
 
-			op, err := cmd.CombinedOutput()
-			require.NoErrorf(t, err, "k6 failed: %s", string(op))
-			t.Log(string(op))
+			runK6Load(t, cmd)
 		} else {
 			cmd := exec.Command("k6",
 				"run",
@@ -568,9 +721,7 @@ func TestLoadStreamBatchWithK6(t *testing.T) {
 				"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", events_count),
 				"./scripts/load_batch_events.js")
 
-			op, err := cmd.CombinedOutput()
-			require.NoErrorf(t, err, "k6 failed: %s", string(op))
-			t.Log(string(op))
+			runK6Load(t, cmd)
 		}
 	}
 }
@@ -650,9 +801,7 @@ func TestLoadStreamBatchWithCustomPartitionWithK6(t *testing.T) {
 			"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", events_count),
 			"./scripts/load_batch_events.js")
 
-		op, err := cmd.CombinedOutput()
-		require.NoErrorf(t, err, "k6 failed: %s", string(op))
-		t.Log(string(op))
+		runK6Load(t, cmd)
 	} else {
 		cmd := exec.Command("k6",
 			"run",
@@ -667,9 +816,7 @@ func TestLoadStreamBatchWithCustomPartitionWithK6(t *testing.T) {
 			"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", events_count),
 			"./scripts/load_batch_events.js")
 
-		op, err := cmd.CombinedOutput()
-		require.NoErrorf(t, err, "k6 failed: %s", string(op))
-		t.Log(string(op))
+		runK6Load(t, cmd)
 	}
 }
 
@@ -695,9 +842,7 @@ func TestLoadStreamNoBatchWithK6(t *testing.T) {
 				"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
 				"./scripts/load_single_event.js")
 
-			op, err := cmd.CombinedOutput()
-			require.NoErrorf(t, err, "k6 failed: %s", string(op))
-			t.Log(string(op))
+			runK6Load(t, cmd)
 		} else {
 			cmd := exec.Command("k6",
 				"run",
@@ -711,9 +856,7 @@ func TestLoadStreamNoBatchWithK6(t *testing.T) {
 				"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
 				"./scripts/load_single_event.js")
 
-			op, err := cmd.CombinedOutput()
-			require.NoErrorf(t, err, "k6 failed: %s", string(op))
-			t.Log(string(op))
+			runK6Load(t, cmd)
 		}
 
 	}
@@ -791,9 +934,7 @@ func TestLoadStreamNoBatchWithCustomPartitionWithK6(t *testing.T) {
 			"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
 			"./scripts/load_single_event.js")
 
-		op, err := cmd.CombinedOutput()
-		require.NoErrorf(t, err, "k6 failed: %s", string(op))
-		t.Log(string(op))
+		runK6Load(t, cmd)
 	} else {
 		cmd := exec.Command("k6",
 			"run",
@@ -807,8 +948,6 @@ func TestLoadStreamNoBatchWithCustomPartitionWithK6(t *testing.T) {
 			"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
 			"./scripts/load_single_event.js")
 
-		op, err := cmd.CombinedOutput()
-		require.NoErrorf(t, err, "k6 failed: %s", string(op))
-		t.Log(string(op))
+		runK6Load(t, cmd)
 	}
 }
