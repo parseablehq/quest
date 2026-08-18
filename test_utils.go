@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -27,10 +28,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-)
-
-const (
-	sleepDuration = 2 * time.Second
 )
 
 func flogStreamFields() []string {
@@ -59,15 +56,47 @@ func readJsonBody[T any](body io.Reader) (res T, err error) {
 	return
 }
 
-func Sleep() {
-	time.Sleep(sleepDuration)
+type PBDataset struct {
+	Title string `json:"title"`
 }
 
-func CreateStream(t *testing.T, client HTTPClient, stream string) {
-	req, _ := client.NewRequest("PUT", "logstream/"+stream, nil)
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
+type PBDatasetInfo struct {
+	DatasetType string            `json:"dataset_type"`
+	Retention   []PBRetentionRule `json:"retention"`
+}
+
+type PBRetentionRule struct {
+	Description string `json:"description"`
+	Action      string `json:"action"`
+	Duration    string `json:"duration"`
+}
+
+func CreateStream(t *testing.T, client PBClient, dataset string) {
+	t.Helper()
+	result, err := client.Run(context.Background(), "dataset", "add", dataset, "--type", "logs")
+	require.NoErrorf(t, err, "pb dataset add failed (exit=%d, stdout=%q, stderr=%q)", result.ExitCode, result.Stdout, result.Stderr)
+}
+
+func ListDatasetsWithPB(t *testing.T, client PBClient) []PBDataset {
+	t.Helper()
+	var datasets []PBDataset
+	result, err := client.RunJSON(context.Background(), &datasets, "dataset", "list")
+	require.NoErrorf(t, err, "pb dataset list failed (exit=%d, stdout=%q, stderr=%q)", result.ExitCode, result.Stdout, result.Stderr)
+	return datasets
+}
+
+func DatasetInfoWithPB(t *testing.T, client PBClient, dataset string) PBDatasetInfo {
+	t.Helper()
+	var info PBDatasetInfo
+	result, err := client.RunJSON(context.Background(), &info, "dataset", "info", dataset)
+	require.NoErrorf(t, err, "pb dataset info failed (exit=%d, stdout=%q, stderr=%q)", result.ExitCode, result.Stdout, result.Stderr)
+	return info
+}
+
+func DeleteStream(t *testing.T, client PBClient, dataset string) {
+	t.Helper()
+	result, err := client.Run(context.Background(), "dataset", "remove", dataset)
+	require.NoErrorf(t, err, "pb dataset remove failed (exit=%d, stdout=%q, stderr=%q)", result.ExitCode, result.Stdout, result.Stderr)
 }
 
 func CreateStreamWithHeader(t *testing.T, client HTTPClient, stream string, header map[string]string) {
@@ -107,13 +136,6 @@ func DetectSchema(t *testing.T, client HTTPClient, sampleJson string, schemaBody
 	body := readAsString(response.Body)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
 	require.JSONEq(t, schemaBody, body, "Schema detection failed")
-}
-
-func DeleteStream(t *testing.T, client HTTPClient, stream string) {
-	req, _ := client.NewRequest("DELETE", "logstream/"+stream, nil)
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
 }
 
 func DeleteAlert(t *testing.T, client HTTPClient, alert_id string) {
@@ -196,68 +218,57 @@ func IngestOneEventForStaticSchemaStream_SameFieldsInLog(t *testing.T, client HT
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
 }
 
-func QueryLogStreamCount(t *testing.T, client HTTPClient, stream string, count uint64) {
+func runSQLWithPB(t *testing.T, client PBClient, query, startTime, endTime string, output any) {
+	t.Helper()
+	result, err := client.RunJSON(
+		context.Background(),
+		output,
+		"sql", "run", query,
+		"--from", startTime,
+		"--to", endTime,
+	)
+	require.NoErrorf(t, err, "pb sql run failed (exit=%d, stdout=%q, stderr=%q)", result.ExitCode, result.Stdout, result.Stderr)
+}
+
+type PBCountRow struct {
+	Count uint64 `json:"count"`
+}
+
+func QueryLogStreamCount(t *testing.T, client PBClient, stream string, count uint64) {
 	// Query last 30 minutes of data only
 	endTime := time.Now().Add(time.Second).Format(time.RFC3339Nano)
 	startTime := time.Now().Add(-30 * time.Minute).Format(time.RFC3339Nano)
 
-	query := map[string]interface{}{
-		"query":     "select count(*) as count from " + stream,
-		"startTime": startTime,
-		"endTime":   endTime,
-	}
-	queryJSON, _ := json.Marshal(query)
-	req, _ := client.NewRequest("POST", "query", bytes.NewBuffer(queryJSON))
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	body := readAsString(response.Body)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
-	expected := fmt.Sprintf(`[{"count":%d}]`, count)
-	require.Equalf(t, expected, body, "Query count incorrect; Expected %s, Actual %s", expected, body)
+	query := "select count(*) as count from " + stream
+	var rows []PBCountRow
+	runSQLWithPB(t, client, query, startTime, endTime, &rows)
+	require.Equalf(t, []PBCountRow{{Count: count}}, rows, "Query count incorrect; Expected %d, Actual %v", count, rows)
 }
 
-func QueryLogStreamCount_Historical(t *testing.T, client HTTPClient, stream string, count uint64) {
+func QueryLogStreamCount_Historical(t *testing.T, client PBClient, stream string, count uint64) {
 	// Query last 30 minutes of data only
 	now := time.Now()
 	startTime := now.AddDate(0, 0, -33).Format(time.RFC3339Nano)
 	endTime := now.AddDate(0, 0, -27).Format(time.RFC3339Nano)
 
-	query := map[string]interface{}{
-		"query":     "select count(*) as count from " + stream,
-		"startTime": startTime,
-		"endTime":   endTime,
-	}
-	queryJSON, _ := json.Marshal(query)
-	req, _ := client.NewRequest("POST", "query", bytes.NewBuffer(queryJSON))
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	body := readAsString(response.Body)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
-	expected := fmt.Sprintf(`[{"count":%d}]`, count)
-	require.Equalf(t, expected, body, "Query count incorrect; Expected %s, Actual %s", expected, body)
+	query := "select count(*) as count from " + stream
+	var rows []PBCountRow
+	runSQLWithPB(t, client, query, startTime, endTime, &rows)
+	require.Equalf(t, []PBCountRow{{Count: count}}, rows, "Query count incorrect; Expected %d, Actual %v", count, rows)
 }
 
-func QueryTwoLogStreamCount(t *testing.T, client HTTPClient, stream1 string, stream2 string, count uint64) {
+func QueryTwoLogStreamCount(t *testing.T, client PBClient, stream1 string, stream2 string, count uint64) {
 	// Query last 30 minutes of data only
 	endTime := time.Now().Add(time.Second).Format(time.RFC3339Nano)
 	startTime := time.Now().Add(-30 * time.Minute).Format(time.RFC3339Nano)
 
-	query := map[string]interface{}{
-		"query":     fmt.Sprintf("select sum(c) as count from (select count(*) as c from %s union all select count(*) as c from %s)", stream1, stream2),
-		"startTime": startTime,
-		"endTime":   endTime,
-	}
-	queryJSON, _ := json.Marshal(query)
-	req, _ := client.NewRequest("POST", "query", bytes.NewBuffer(queryJSON))
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	body := readAsString(response.Body)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
-	expected := fmt.Sprintf(`[{"count":%d}]`, count)
-	require.Equalf(t, expected, body, "Query count incorrect; Expected %s, Actual %s", expected, body)
+	query := fmt.Sprintf("select sum(c) as count from (select count(*) as c from %s union all select count(*) as c from %s)", stream1, stream2)
+	var rows []PBCountRow
+	runSQLWithPB(t, client, query, startTime, endTime, &rows)
+	require.Equalf(t, []PBCountRow{{Count: count}}, rows, "Query count incorrect; Expected %d, Actual %v", count, rows)
 }
 
-func AssertQueryOK(t *testing.T, client HTTPClient, query string, args ...any) {
+func AssertQueryOK(t *testing.T, client PBClient, query string, args ...any) {
 	// Query last 30 minutes of data only
 	endTime := time.Now().Add(time.Second).Format(time.RFC3339Nano)
 	startTime := time.Now().Add(-30 * time.Minute).Format(time.RFC3339Nano)
@@ -269,17 +280,8 @@ func AssertQueryOK(t *testing.T, client HTTPClient, query string, args ...any) {
 		finalQuery = fmt.Sprintf(query, args...)
 	}
 
-	queryJSON, _ := json.Marshal(map[string]interface{}{
-		"query":     finalQuery,
-		"startTime": startTime,
-		"endTime":   endTime,
-	})
-
-	req, _ := client.NewRequest("POST", "query", bytes.NewBuffer(queryJSON))
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	body := readAsString(response.Body)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
+	var rows []json.RawMessage
+	runSQLWithPB(t, client, finalQuery, startTime, endTime, &rows)
 }
 
 func AssertStreamSchema(t *testing.T, client HTTPClient, stream string, schema string) {
@@ -307,31 +309,25 @@ func AssertRole(t *testing.T, client HTTPClient, name string, role string) {
 	require.JSONEq(t, role, body, "Get role response doesn't match with retention config returned")
 }
 
-func CreateUser(t *testing.T, client HTTPClient, user string) string {
-	req, _ := client.NewRequest("POST", "user/"+user, nil)
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	body := readAsString(response.Body)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
-	return body
+func CreateUserWithRole(t *testing.T, client PBClient, user string, roles []string) string {
+	t.Helper()
+	result, err := client.Run(context.Background(), "user", "add", user, "--role", strings.Join(roles, ","))
+	require.NoErrorf(t, err, "pb user add failed (exit=%d, stdout=%q, stderr=%q)", result.ExitCode, result.Stdout, result.Stderr)
+	password, err := passwordFromPBUserAddOutput(result.Stdout)
+	require.NoErrorf(t, err, "pb user add returned no password (stdout=%q, stderr=%q)", result.Stdout, result.Stderr)
+	return password
 }
 
-func CreateUserWithRole(t *testing.T, client HTTPClient, user string, roles []string) string {
-	payload, _ := json.Marshal(roles)
-	req, _ := client.NewRequest("POST", "user/"+user, bytes.NewBuffer(payload))
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	body := readAsString(response.Body)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
-	return body
-}
-
-func AssignRolesToUser(t *testing.T, client HTTPClient, user string, roles []string) {
-	payload, _ := json.Marshal(roles)
-	req, _ := client.NewRequest("PUT", "user/"+user+"/role", bytes.NewBuffer(payload))
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+func passwordFromPBUserAddOutput(output string) (string, error) {
+	for _, line := range strings.Split(output, "\n") {
+		if password, found := strings.CutPrefix(strings.TrimSpace(line), "Password is:"); found {
+			password = strings.TrimSpace(password)
+			if password != "" {
+				return password, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("password not found in pb output")
 }
 
 func AssertUserRole(t *testing.T, client HTTPClient, user string, roleName, roleBody string) {
@@ -353,65 +349,16 @@ func RegenPassword(t *testing.T, client HTTPClient, user string) string {
 	return body
 }
 
-func SetUserRole(t *testing.T, client HTTPClient, user string, roles []string) {
-	payload, _ := json.Marshal(roles)
-	req, _ := client.NewRequest("PUT", "user/"+user+"/role", bytes.NewBuffer(payload))
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+func DeleteUser(t *testing.T, client PBClient, user string) {
+	t.Helper()
+	result, err := client.Run(context.Background(), "user", "remove", user)
+	require.NoErrorf(t, err, "pb user remove failed (exit=%d, stdout=%q, stderr=%q)", result.ExitCode, result.Stdout, result.Stderr)
 }
 
-func DeleteUser(t *testing.T, client HTTPClient, user string) {
-	req, _ := client.NewRequest("DELETE", "user/"+user, nil)
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
-}
-
-func DeleteRole(t *testing.T, client HTTPClient, roleName string) {
-	req, _ := client.NewRequest("DELETE", "role/"+roleName, nil)
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
-}
-
-func SetDefaultRole(t *testing.T, client HTTPClient, roleName string) {
-	payload, _ := json.Marshal(roleName)
-	req, _ := client.NewRequest("PUT", "role/default", bytes.NewBuffer(payload))
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
-}
-
-func AssertDefaultRole(t *testing.T, client HTTPClient, roleName string) {
-	req, _ := client.NewRequest("GET", "role/default", nil)
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	body := readAsString(response.Body)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
-	require.Equalf(t, roleName, body, "Get default role response doesn't match with expected role")
-}
-
-func PutSingleEventExpectErr(t *testing.T, client HTTPClient, stream string) {
-	payload := `{
-		"id": "id;objectId",
-		"maxRunDistance": "float;1;20;1",
-		"cpf": "cpf",
-		"cnpj": "cnpj",
-		"pretendSalary": "money",
-		"age": "int;20;80",
-		"gender": "gender",
-		"firstName": "firstName",
-		"lastName": "lastName",
-		"phone": "maskInt;+55 (83) 9####-####",
-		"address": "address",
-		"hairColor": "color"
-	}`
-	req, _ := client.NewRequest("POST", "logstream/"+stream, bytes.NewBufferString(payload))
-	response, err := client.Do(req)
-
-	require.NoErrorf(t, err, "Request failed when expected to pass: %s", err)
-	require.Equalf(t, 403, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+func DeleteRole(t *testing.T, client PBClient, roleName string) {
+	t.Helper()
+	result, err := client.Run(context.Background(), "role", "remove", roleName)
+	require.NoErrorf(t, err, "pb role remove failed (exit=%d, stdout=%q, stderr=%q)", result.ExitCode, result.Stdout, result.Stderr)
 }
 
 func PutSingleEvent(t *testing.T, client HTTPClient, stream string) {
