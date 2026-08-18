@@ -17,7 +17,7 @@
 package main
 
 import (
-	"bytes"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -35,8 +35,8 @@ const (
 	events_count = "5"
 )
 
-// The default role is server-wide state. RBAC tests are still scheduled as
-// parallel tests, but their short user/role mutations must not overlap.
+// RBAC tests mutate shared server-wide user and role state. They are still
+// scheduled as parallel tests, but those mutations must not overlap.
 var rbacMu sync.Mutex
 
 var k6Mu sync.RWMutex
@@ -44,33 +44,23 @@ var k6Mu sync.RWMutex
 func TestSmokeListLogStream(t *testing.T) {
 	t.Parallel()
 	streamName := NewGlob.Stream + "list"
-	CreateStream(t, NewGlob.QueryClient, streamName)
+	CreateStream(t, NewGlob.PBClient, streamName)
 	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.QueryClient, streamName)
+		DeleteStream(t, NewGlob.PBClient, streamName)
 	})
-	req, err := NewGlob.QueryClient.NewRequest("GET", "logstream", nil)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-
-	response, err := NewGlob.QueryClient.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-
-	body := readAsString(response.Body)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status)
-	type streamInfo struct {
-		Name string `json:"name"`
-	}
-	res, err := readJsonBody[[]streamInfo](bytes.NewBufferString(body))
-	require.NoError(t, err)
-	require.Contains(t, res, streamInfo{Name: streamName})
+	datasets := ListDatasetsWithPB(t, NewGlob.PBClient)
+	require.Contains(t, datasets, PBDataset{Title: streamName})
 }
 
 func TestSmokeCreateStream(t *testing.T) {
 	t.Parallel()
 	stream := NewGlob.Stream + "create"
-	CreateStream(t, NewGlob.QueryClient, stream)
+	CreateStream(t, NewGlob.PBClient, stream)
 	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.QueryClient, stream)
+		DeleteStream(t, NewGlob.PBClient, stream)
 	})
+	info := DatasetInfoWithPB(t, NewGlob.PBClient, stream)
+	require.Equal(t, "logs", info.DatasetType)
 }
 
 func TestSmokeDetectSchema(t *testing.T) {
@@ -87,7 +77,7 @@ func TestSmokeDetectSchema(t *testing.T) {
 // 	} else {
 // 		IngestOneEventWithTimePartition_TimeStampMismatch(t, NewGlob.IngestorClient, historicalStream)
 // 	}
-// 	DeleteStream(t, NewGlob.QueryClient, historicalStream)
+// 	DeleteStream(t, NewGlob.PBClient, historicalStream)
 // }
 
 // func TestTimePartition_NoTimePartitionInLog(t *testing.T) {
@@ -99,7 +89,7 @@ func TestSmokeDetectSchema(t *testing.T) {
 // 	} else {
 // 		IngestOneEventWithTimePartition_NoTimePartitionInLog(t, NewGlob.IngestorClient, historicalStream)
 // 	}
-// 	DeleteStream(t, NewGlob.QueryClient, historicalStream)
+// 	DeleteStream(t, NewGlob.PBClient, historicalStream)
 // }
 
 // func TestTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t *testing.T) {
@@ -111,7 +101,7 @@ func TestSmokeDetectSchema(t *testing.T) {
 // 	} else {
 // 		IngestOneEventWithTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t, NewGlob.IngestorClient, historicalStream)
 // 	}
-// 	DeleteStream(t, NewGlob.QueryClient, historicalStream)
+// 	DeleteStream(t, NewGlob.PBClient, historicalStream)
 // }
 
 func TestLoadStream_StaticSchema_EventWithSameFields(t *testing.T) {
@@ -120,7 +110,7 @@ func TestLoadStream_StaticSchema_EventWithSameFields(t *testing.T) {
 	staticSchemaFlagHeader := map[string]string{"X-P-Static-Schema-Flag": "true"}
 	CreateStreamWithSchemaBody(t, NewGlob.QueryClient, staticSchemaStream, staticSchemaFlagHeader, SchemaPayload)
 	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.QueryClient, staticSchemaStream)
+		DeleteStream(t, NewGlob.PBClient, staticSchemaStream)
 	})
 	if NewGlob.IngestorUrl.String() == "" {
 		IngestOneEventForStaticSchemaStream_SameFieldsInLog(t, NewGlob.QueryClient, staticSchemaStream)
@@ -137,7 +127,7 @@ func TestLoadStreamBatchWithK6_StaticSchema(t *testing.T) {
 		staticSchemaFlagHeader := map[string]string{"X-P-Static-Schema-Flag": "true"}
 		CreateStreamWithSchemaBody(t, NewGlob.QueryClient, staticSchemaStream, staticSchemaFlagHeader, SchemaPayload)
 		t.Cleanup(func() {
-			DeleteStream(t, NewGlob.QueryClient, staticSchemaStream)
+			DeleteStream(t, NewGlob.PBClient, staticSchemaStream)
 		})
 		if NewGlob.IngestorUrl.String() == "" {
 			cmd := exec.Command("k6",
@@ -179,7 +169,7 @@ func TestLoadStream_StaticSchema_EventWithNewField(t *testing.T) {
 	staticSchemaFlagHeader := map[string]string{"X-P-Static-Schema-Flag": "true"}
 	CreateStreamWithSchemaBody(t, NewGlob.QueryClient, staticSchemaStream, staticSchemaFlagHeader, SchemaPayload)
 	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.QueryClient, staticSchemaStream)
+		DeleteStream(t, NewGlob.PBClient, staticSchemaStream)
 	})
 	if NewGlob.IngestorUrl.String() == "" {
 		IngestOneEventForStaticSchemaStream_NewFieldInLog(t, NewGlob.QueryClient, staticSchemaStream)
@@ -194,7 +184,7 @@ func TestCreateStream_WithCustomPartition_Success(t *testing.T) {
 	customHeader := map[string]string{"X-P-Custom-Partition": "level"}
 	CreateStreamWithHeader(t, NewGlob.QueryClient, customPartitionStream, customHeader)
 	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.QueryClient, customPartitionStream)
+		DeleteStream(t, NewGlob.PBClient, customPartitionStream)
 	})
 }
 
@@ -209,11 +199,11 @@ func TestSmokeIngestAndQuery(t *testing.T) {
 	t.Parallel()
 	stream1 := NewGlob.Stream + "ingestquery1"
 	stream2 := NewGlob.Stream + "ingestquery2"
-	CreateStream(t, NewGlob.QueryClient, stream1)
-	CreateStream(t, NewGlob.QueryClient, stream2)
+	CreateStream(t, NewGlob.PBClient, stream1)
+	CreateStream(t, NewGlob.PBClient, stream2)
 	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.QueryClient, stream1)
-		DeleteStream(t, NewGlob.QueryClient, stream2)
+		DeleteStream(t, NewGlob.PBClient, stream1)
+		DeleteStream(t, NewGlob.PBClient, stream2)
 	})
 
 	if NewGlob.IngestorUrl.String() == "" {
@@ -230,26 +220,26 @@ func TestSmokeIngestAndQuery(t *testing.T) {
 	time.Sleep(120 * time.Second)
 
 	t.Run("IngestEventsToStream", func(t *testing.T) {
-		QueryLogStreamCount(t, NewGlob.QueryClient, stream1, 50)
+		QueryLogStreamCount(t, NewGlob.PBClient, stream1, 50)
 		AssertStreamSchema(t, NewGlob.QueryClient, stream1, FlogJsonSchema)
 	})
 
 	t.Run("RunQueries", func(t *testing.T) {
-		QueryLogStreamCount(t, NewGlob.QueryClient, stream1, 50)
-		AssertQueryOK(t, NewGlob.QueryClient, "SELECT * FROM %s", stream1)
-		AssertQueryOK(t, NewGlob.QueryClient, "SELECT * FROM %s OFFSET 25 LIMIT 25", stream1)
+		QueryLogStreamCount(t, NewGlob.PBClient, stream1, 50)
+		AssertQueryOK(t, NewGlob.PBClient, "SELECT * FROM %s", stream1)
+		AssertQueryOK(t, NewGlob.PBClient, "SELECT * FROM %s OFFSET 25 LIMIT 25", stream1)
 
 		for _, item := range flogStreamFields() {
-			AssertQueryOK(t, NewGlob.QueryClient, "SELECT %s FROM %s", item, stream1)
+			AssertQueryOK(t, NewGlob.PBClient, "SELECT %s FROM %s", item, stream1)
 		}
 
-		AssertQueryOK(t, NewGlob.QueryClient, "SELECT * FROM %s WHERE method = 'POST'", stream1)
-		AssertQueryOK(t, NewGlob.QueryClient, "SELECT method, COUNT(*) FROM %s GROUP BY method", stream1)
-		AssertQueryOK(t, NewGlob.QueryClient, `SELECT DATE_TRUNC('minute', p_timestamp) as minute, COUNT(*) FROM %s GROUP BY minute`, stream1)
+		AssertQueryOK(t, NewGlob.PBClient, "SELECT * FROM %s WHERE method = 'POST'", stream1)
+		AssertQueryOK(t, NewGlob.PBClient, "SELECT method, COUNT(*) FROM %s GROUP BY method", stream1)
+		AssertQueryOK(t, NewGlob.PBClient, `SELECT DATE_TRUNC('minute', p_timestamp) as minute, COUNT(*) FROM %s GROUP BY minute`, stream1)
 	})
 
 	t.Run("QueryTwoStreams", func(t *testing.T) {
-		QueryTwoLogStreamCount(t, NewGlob.QueryClient, stream1, stream2, 100)
+		QueryTwoLogStreamCount(t, NewGlob.PBClient, stream1, stream2, 100)
 	})
 
 }
@@ -257,9 +247,9 @@ func TestSmokeIngestAndQuery(t *testing.T) {
 func TestSmokeLoadWithK6Streams(t *testing.T) {
 	t.Parallel()
 	stream := NewGlob.Stream + "smokeload"
-	CreateStream(t, NewGlob.QueryClient, stream)
+	CreateStream(t, NewGlob.PBClient, stream)
 	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.QueryClient, stream)
+		DeleteStream(t, NewGlob.PBClient, stream)
 	})
 	runK6Smoke(t, stream)
 
@@ -267,19 +257,19 @@ func TestSmokeLoadWithK6Streams(t *testing.T) {
 	customHeader := map[string]string{"X-P-Custom-Partition": "level"}
 	CreateStreamWithHeader(t, NewGlob.QueryClient, customPartitionStream, customHeader)
 	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.QueryClient, customPartitionStream)
+		DeleteStream(t, NewGlob.PBClient, customPartitionStream)
 	})
 	runK6Smoke(t, customPartitionStream)
 
 	time.Sleep(150 * time.Second)
 
 	t.Run("LoadWithK6Stream", func(t *testing.T) {
-		QueryLogStreamCount(t, NewGlob.QueryClient, stream, 20000)
+		QueryLogStreamCount(t, NewGlob.PBClient, stream, 20000)
 		AssertStreamSchema(t, NewGlob.QueryClient, stream, SchemaBody)
 	})
 
 	t.Run("Load_CustomPartition_WithK6Stream", func(t *testing.T) {
-		QueryLogStreamCount(t, NewGlob.QueryClient, customPartitionStream, 20000)
+		QueryLogStreamCount(t, NewGlob.PBClient, customPartitionStream, 20000)
 	})
 
 }
@@ -361,8 +351,8 @@ func ingestAlertFixture(t *testing.T, stream string) {
 // 		cmd.Output()
 // 	}
 // 	time.Sleep(120 * time.Second)
-// 	QueryLogStreamCount_Historical(t, NewGlob.QueryClient, time_partition_stream, 20000)
-// 	DeleteStream(t, NewGlob.QueryClient, time_partition_stream)
+// 	QueryLogStreamCount_Historical(t, NewGlob.PBClient, time_partition_stream, 20000)
+// 	DeleteStream(t, NewGlob.PBClient, time_partition_stream)
 // }
 
 // func TestSmokeLoad_TimeAndCustomPartition_WithK6Stream(t *testing.T) {
@@ -393,8 +383,8 @@ func ingestAlertFixture(t *testing.T, stream string) {
 // 		cmd.Output()
 // 	}
 // 	time.Sleep(180 * time.Second)
-// 	QueryLogStreamCount_Historical(t, NewGlob.QueryClient, custom_partition_stream, 20000)
-// 	DeleteStream(t, NewGlob.QueryClient, custom_partition_stream)
+// 	QueryLogStreamCount_Historical(t, NewGlob.PBClient, custom_partition_stream, 20000)
+// 	DeleteStream(t, NewGlob.PBClient, custom_partition_stream)
 // }
 
 type testTargetResponse struct {
@@ -483,9 +473,9 @@ func TestSmokeSetTarget(t *testing.T) {
 func TestSmokeSetAlert(t *testing.T) {
 	t.Parallel()
 	stream := NewGlob.Stream + "setalert"
-	CreateStream(t, NewGlob.QueryClient, stream)
+	CreateStream(t, NewGlob.PBClient, stream)
 	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.QueryClient, stream)
+		DeleteStream(t, NewGlob.PBClient, stream)
 	})
 	runK6Smoke(t, stream)
 	time.Sleep(120 * time.Second)
@@ -503,9 +493,9 @@ func TestSmokeGetAlert(t *testing.T) {
 	t.Parallel()
 	stream := NewGlob.Stream + "getalert"
 	title := NewGlob.Stream + "getalerttitle"
-	CreateStream(t, NewGlob.QueryClient, stream)
+	CreateStream(t, NewGlob.PBClient, stream)
 	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.QueryClient, stream)
+		DeleteStream(t, NewGlob.PBClient, stream)
 	})
 	ingestAlertFixture(t, stream)
 	time.Sleep(120 * time.Second)
@@ -531,9 +521,9 @@ func TestSmokeGetAlert(t *testing.T) {
 func TestSmokeSetRetention(t *testing.T) {
 	t.Parallel()
 	stream := NewGlob.Stream + "setretention"
-	CreateStream(t, NewGlob.QueryClient, stream)
+	CreateStream(t, NewGlob.PBClient, stream)
 	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.QueryClient, stream)
+		DeleteStream(t, NewGlob.PBClient, stream)
 	})
 	req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+stream+"/retention", strings.NewReader(RetentionBody))
 	response, err := NewGlob.QueryClient.Do(req)
@@ -544,9 +534,9 @@ func TestSmokeSetRetention(t *testing.T) {
 func TestSmokeGetRetention(t *testing.T) {
 	t.Parallel()
 	stream := NewGlob.Stream + "getretention"
-	CreateStream(t, NewGlob.QueryClient, stream)
+	CreateStream(t, NewGlob.PBClient, stream)
 	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.QueryClient, stream)
+		DeleteStream(t, NewGlob.PBClient, stream)
 	})
 
 	req, _ := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+stream+"/retention", strings.NewReader(RetentionBody))
@@ -554,12 +544,10 @@ func TestSmokeGetRetention(t *testing.T) {
 	require.NoErrorf(t, err, "Request failed: %s", err)
 	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 
-	req, _ = NewGlob.QueryClient.NewRequest("GET", "logstream/"+stream+"/retention", nil)
-	response, err = NewGlob.QueryClient.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	body := readAsString(response.Body)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, body)
-	require.JSONEq(t, RetentionBody, body, "Get retention response doesn't match with retention config returned")
+	info := DatasetInfoWithPB(t, NewGlob.PBClient, stream)
+	var expected []PBRetentionRule
+	require.NoError(t, json.Unmarshal([]byte(RetentionBody), &expected))
+	require.Equal(t, expected, info.Retention, "Get retention response doesn't match with retention config returned")
 }
 
 // This test calls all the User API endpoints
@@ -571,39 +559,30 @@ func TestSmoke_AllUsersAPI(t *testing.T) {
 
 	role := NewGlob.Stream + "allusersrole"
 	user := NewGlob.Stream + "allusers"
-	userWithRole := NewGlob.Stream + "alluserswithrole"
 	CreateRole(t, NewGlob.QueryClient, role, dummyRole)
 	AssertRole(t, NewGlob.QueryClient, role, dummyRole)
 
-	CreateUser(t, NewGlob.QueryClient, user)
-	CreateUserWithRole(t, NewGlob.QueryClient, userWithRole, []string{role})
-	AssertUserRole(t, NewGlob.QueryClient, userWithRole, role, dummyRole)
+	CreateUserWithRole(t, NewGlob.PBClient, user, []string{role})
+	AssertUserRole(t, NewGlob.QueryClient, user, role, dummyRole)
 	RegenPassword(t, NewGlob.QueryClient, user)
-	DeleteUser(t, NewGlob.QueryClient, user)
-	DeleteUser(t, NewGlob.QueryClient, userWithRole)
-	DeleteRole(t, NewGlob.QueryClient, role)
+	DeleteUser(t, NewGlob.PBClient, user)
+	DeleteRole(t, NewGlob.PBClient, role)
 }
 
-// This test checks that a new user doesn't get any role by default
-// even if a default role is set.
-func TestSmoke_NewUserNoRole(t *testing.T) {
+func TestSmoke_NewUserWithRole(t *testing.T) {
 	t.Parallel()
 	rbacMu.Lock()
 	defer rbacMu.Unlock()
 
-	stream := NewGlob.Stream + "newusernorole"
-	role := NewGlob.Stream + "defaultrole"
+	role := NewGlob.Stream + "newuserrole"
 	user := NewGlob.Stream + "newuser"
-	CreateStream(t, NewGlob.QueryClient, stream)
-	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.QueryClient, stream)
-	})
 
 	CreateRole(t, NewGlob.QueryClient, role, dummyRole)
-	SetDefaultRole(t, NewGlob.QueryClient, role)
-	AssertDefaultRole(t, NewGlob.QueryClient, fmt.Sprintf("%q", role))
-
-	CreateUser(t, NewGlob.QueryClient, user)
+	AssertRole(t, NewGlob.QueryClient, role, dummyRole)
+	CreateUserWithRole(t, NewGlob.PBClient, user, []string{role})
+	AssertUserRole(t, NewGlob.QueryClient, user, role, dummyRole)
+	DeleteUser(t, NewGlob.PBClient, user)
+	DeleteRole(t, NewGlob.PBClient, role)
 }
 
 func TestSmokeRbacBasic(t *testing.T) {
@@ -614,16 +593,16 @@ func TestSmokeRbacBasic(t *testing.T) {
 	stream := NewGlob.Stream + "rbacbasic"
 	role := NewGlob.Stream + "rbacbasicrole"
 	user := NewGlob.Stream + "rbacbasicuser"
-	CreateStream(t, NewGlob.QueryClient, stream)
+	CreateStream(t, NewGlob.PBClient, stream)
 	CreateRole(t, NewGlob.QueryClient, role, dummyRole)
 	AssertRole(t, NewGlob.QueryClient, role, dummyRole)
-	CreateUserWithRole(t, NewGlob.QueryClient, user, []string{role})
+	CreateUserWithRole(t, NewGlob.PBClient, user, []string{role})
 	userClient := NewGlob.QueryClient
 	userClient.Username = user
 	userClient.Password = RegenPassword(t, NewGlob.QueryClient, user)
 	checkAPIAccess(t, userClient, NewGlob.QueryClient, stream, "editor")
-	DeleteUser(t, NewGlob.QueryClient, user)
-	DeleteRole(t, NewGlob.QueryClient, role)
+	DeleteUser(t, NewGlob.PBClient, user)
+	DeleteRole(t, NewGlob.PBClient, role)
 }
 
 func TestSmokeRoles(t *testing.T) {
@@ -632,7 +611,7 @@ func TestSmokeRoles(t *testing.T) {
 	defer rbacMu.Unlock()
 
 	stream := NewGlob.Stream + "roles"
-	CreateStream(t, NewGlob.QueryClient, stream)
+	CreateStream(t, NewGlob.PBClient, stream)
 	cases := []struct {
 		roleName string
 		body     string
@@ -660,7 +639,7 @@ func TestSmokeRoles(t *testing.T) {
 			CreateRole(t, NewGlob.QueryClient, tc.roleName, tc.body)
 			AssertRole(t, NewGlob.QueryClient, tc.roleName, tc.body)
 			username := tc.roleName + "_user"
-			password := CreateUserWithRole(t, NewGlob.QueryClient, username, []string{tc.roleName})
+			password := CreateUserWithRole(t, NewGlob.PBClient, username, []string{tc.roleName})
 			var ingestClient HTTPClient
 			queryClient := NewGlob.QueryClient
 			queryClient.Username = username
@@ -677,8 +656,8 @@ func TestSmokeRoles(t *testing.T) {
 
 			roleKind := strings.TrimPrefix(tc.roleName, NewGlob.Stream)
 			checkAPIAccess(t, queryClient, ingestClient, stream, roleKind)
-			DeleteUser(t, NewGlob.QueryClient, username)
-			DeleteRole(t, NewGlob.QueryClient, tc.roleName)
+			DeleteUser(t, NewGlob.PBClient, username)
+			DeleteRole(t, NewGlob.PBClient, tc.roleName)
 		})
 	}
 }
@@ -688,9 +667,9 @@ func TestLoadStreamBatchWithK6(t *testing.T) {
 		t.Parallel()
 
 		stream := NewGlob.Stream + "loadbatch"
-		CreateStream(t, NewGlob.QueryClient, stream)
+		CreateStream(t, NewGlob.PBClient, stream)
 		t.Cleanup(func() {
-			DeleteStream(t, NewGlob.QueryClient, stream)
+			DeleteStream(t, NewGlob.PBClient, stream)
 		})
 		if NewGlob.IngestorUrl.String() == "" {
 			cmd := exec.Command("k6",
@@ -771,7 +750,7 @@ func TestLoadStreamBatchWithK6(t *testing.T) {
 // 			t.Log(string(op))
 // 		}
 
-// 		DeleteStream(t, NewGlob.QueryClient, historicalStream)
+// 		DeleteStream(t, NewGlob.PBClient, historicalStream)
 // 	}
 // }
 
@@ -785,7 +764,7 @@ func TestLoadStreamBatchWithCustomPartitionWithK6(t *testing.T) {
 	customHeader := map[string]string{"X-P-Custom-Partition": "level"}
 	CreateStreamWithHeader(t, NewGlob.QueryClient, customPartitionStream, customHeader)
 	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.QueryClient, customPartitionStream)
+		DeleteStream(t, NewGlob.PBClient, customPartitionStream)
 	})
 	if NewGlob.IngestorUrl.String() == "" {
 		cmd := exec.Command("k6",
@@ -825,9 +804,9 @@ func TestLoadStreamNoBatchWithK6(t *testing.T) {
 		t.Parallel()
 
 		stream := NewGlob.Stream + "loadsingle"
-		CreateStream(t, NewGlob.QueryClient, stream)
+		CreateStream(t, NewGlob.PBClient, stream)
 		t.Cleanup(func() {
-			DeleteStream(t, NewGlob.QueryClient, stream)
+			DeleteStream(t, NewGlob.PBClient, stream)
 		})
 		if NewGlob.IngestorUrl.String() == "" {
 			cmd := exec.Command("k6",
@@ -905,7 +884,7 @@ func TestLoadStreamNoBatchWithK6(t *testing.T) {
 // 			t.Log(string(op))
 // 		}
 
-// 		DeleteStream(t, NewGlob.QueryClient, historicalStream)
+// 		DeleteStream(t, NewGlob.PBClient, historicalStream)
 // 	}
 // }
 
@@ -919,7 +898,7 @@ func TestLoadStreamNoBatchWithCustomPartitionWithK6(t *testing.T) {
 	customHeader := map[string]string{"X-P-Custom-Partition": "level"}
 	CreateStreamWithHeader(t, NewGlob.QueryClient, customPartitionStream, customHeader)
 	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.QueryClient, customPartitionStream)
+		DeleteStream(t, NewGlob.PBClient, customPartitionStream)
 	})
 	if NewGlob.IngestorUrl.String() == "" {
 		cmd := exec.Command("k6",

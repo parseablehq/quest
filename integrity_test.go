@@ -87,9 +87,9 @@ func TestIntegrity(t *testing.T) {
 	t.Parallel()
 	stream := NewGlob.Stream + "integrity"
 	workDir := t.TempDir()
-	CreateStream(t, NewGlob.QueryClient, stream)
+	CreateStream(t, NewGlob.PBClient, stream)
 	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.QueryClient, stream)
+		DeleteStream(t, NewGlob.PBClient, stream)
 	})
 	iterations := 1
 	flogsPerIteration := 100

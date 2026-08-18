@@ -36,6 +36,7 @@ type Glob struct {
 	Stream           string
 	QueryClient      HTTPClient
 	IngestorClient   HTTPClient
+	PBClient         PBClient
 	Mode             string
 	MinIoConfig
 }
@@ -59,6 +60,7 @@ var NewGlob = func() Glob {
 
 	var stream string
 	var mode string
+	var pbBinary string
 	// XXX
 	var minioUrl string
 	var minioUser string
@@ -75,6 +77,7 @@ var NewGlob = func() Glob {
 
 	flag.StringVar(&stream, "stream", "app", "Specify stream. Default is app")
 	flag.StringVar(&mode, "mode", "smoke", "Specify mode. Default is smoke")
+	flag.StringVar(&pbBinary, "pb-bin", "pb", "Specify the pb binary path. Default is pb from PATH")
 
 	flag.StringVar(&minioUrl, "minio-url", "localhost:9000", "Specify MinIO URL. Default is localhost:9000")
 	flag.StringVar(&minioUser, "minio-user", "minioadmin", "Specify MinIO User. Default is `minioadmin`")
@@ -89,6 +92,7 @@ var NewGlob = func() Glob {
 	}
 
 	queryClient := DefaultClient(*parsedQueryTargetUrl, queryUsername, queryPassword)
+	pbClient := DefaultPBClient(pbBinary)
 
 	if targetIngestorUrl != "" {
 		parsedIngestorTargetUrl, err := url.Parse(targetIngestorUrl)
@@ -106,6 +110,7 @@ var NewGlob = func() Glob {
 			IngestorUsername: ingestorUsername,
 			IngestorPassword: ingestorPassword,
 			IngestorClient:   ingestorClient,
+			PBClient:         pbClient,
 			Stream:           stream,
 			Mode:             mode,
 			MinIoConfig: MinIoConfig{
@@ -121,6 +126,7 @@ var NewGlob = func() Glob {
 			QueryUsername: queryUsername,
 			QueryPassword: queryPassword,
 			QueryClient:   queryClient,
+			PBClient:      pbClient,
 			Stream:        stream,
 			Mode:          mode,
 			MinIoConfig: MinIoConfig{
