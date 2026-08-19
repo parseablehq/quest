@@ -34,7 +34,41 @@ const (
 	parseableLoadSettleWait = 3 * time.Minute // Allows asynchronous flush and conversion to finish.
 )
 
-var k6Mu sync.RWMutex
+// loadPhaseLock lets all finite regular load tests join the active read phase,
+// while the smoke load remains exclusive from that phase.
+type loadPhaseLock struct {
+	readersMu  sync.Mutex
+	resourceMu sync.Mutex
+	readers    int
+}
+
+func (l *loadPhaseLock) RLock() {
+	l.readersMu.Lock()
+	l.readers++
+	if l.readers == 1 {
+		l.resourceMu.Lock()
+	}
+	l.readersMu.Unlock()
+}
+
+func (l *loadPhaseLock) RUnlock() {
+	l.readersMu.Lock()
+	l.readers--
+	if l.readers == 0 {
+		l.resourceMu.Unlock()
+	}
+	l.readersMu.Unlock()
+}
+
+func (l *loadPhaseLock) Lock() {
+	l.resourceMu.Lock()
+}
+
+func (l *loadPhaseLock) Unlock() {
+	l.resourceMu.Unlock()
+}
+
+var k6Mu loadPhaseLock
 
 func TestLoadStreamBatchWithK6_StaticSchema(t *testing.T) {
 	// Verifies batch ingestion into a static-schema stream under load.
