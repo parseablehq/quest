@@ -4,7 +4,8 @@ WORKDIR /tests
 
 COPY . .
 
-RUN go test -c \
+RUN go test ./tests/integration/clients/... \
+    && go test -c -o quest.test ./tests/integration \
     && apt install wget \
     && wget https://github.com/grafana/k6/releases/download/v0.46.0/k6-v0.46.0-linux-amd64.deb \
     && apt install -f ./k6-v0.46.0-linux-amd64.deb \
