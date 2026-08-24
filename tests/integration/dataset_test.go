@@ -17,10 +17,38 @@
 package main
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+type prismDatasetResponse struct {
+	Stream    string          `json:"stream"`
+	Info      json.RawMessage `json:"info"`
+	Schema    json.RawMessage `json:"schema"`
+	Stats     json.RawMessage `json:"stats"`
+	Retention json.RawMessage `json:"retention"`
+	Counts    json.RawMessage `json:"counts"`
+}
+
+type prismDatasetInfoResponse struct {
+	Info      json.RawMessage `json:"info"`
+	Schema    json.RawMessage `json:"schema"`
+	Stats     json.RawMessage `json:"stats"`
+	Retention json.RawMessage `json:"retention"`
+}
+
+type prismStreamInfo struct {
+	TimePartitionLimit string `json:"timePartitionLimit"`
+}
+
+func requireJSONField(t *testing.T, field json.RawMessage, name string) {
+	t.Helper()
+	require.NotEmptyf(t, field, "%s is missing from the response", name)
+	require.NotEqualf(t, "null", string(field), "%s is null in the response", name)
+}
 
 func TestSmokeListLogStream(t *testing.T) {
 	// Verifies that the dataset list includes a newly created stream.
@@ -60,6 +88,84 @@ func TestSmokeDetectSchema(t *testing.T) {
 	// Verifies that schema detection returns the expected schema.
 	t.Parallel()
 	DetectSchema(t, NewGlob.QueryClient, SampleJson, SchemaBody)
+}
+
+func TestPrismDatasetUIEndpoints(t *testing.T) {
+	// Verifies the combined dataset list and dataset info APIs used by Prism.
+	t.Parallel()
+	stream := NewGlob.Stream + "prismdataset"
+	CreateStream(t, NewGlob.PBClient, stream)
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.PBClient, stream)
+	})
+
+	t.Run("ListSelectedDataset", func(t *testing.T) {
+		body := strings.NewReader(`{"streams":["` + stream + `"]}`)
+		req, err := NewGlob.QueryClient.NewRequestAtPath("POST", "api/prism/v1/datasets", body)
+		require.NoError(t, err)
+		response, err := NewGlob.QueryClient.Do(req)
+		require.NoError(t, err)
+		defer response.Body.Close()
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
+
+		datasets, err := readJsonBody[[]prismDatasetResponse](response.Body)
+		require.NoError(t, err)
+		require.Len(t, datasets, 1)
+		require.Equal(t, stream, datasets[0].Stream)
+		requireJSONField(t, datasets[0].Info, "info")
+		requireJSONField(t, datasets[0].Schema, "schema")
+		requireJSONField(t, datasets[0].Stats, "stats")
+		requireJSONField(t, datasets[0].Retention, "retention")
+		requireJSONField(t, datasets[0].Counts, "counts")
+	})
+
+	t.Run("GetDatasetInfo", func(t *testing.T) {
+		req, err := NewGlob.QueryClient.NewRequestAtPath("GET", "api/prism/v1/logstream/"+stream+"/info", nil)
+		require.NoError(t, err)
+		response, err := NewGlob.QueryClient.Do(req)
+		require.NoError(t, err)
+		defer response.Body.Close()
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
+
+		info, err := readJsonBody[prismDatasetInfoResponse](response.Body)
+		require.NoError(t, err)
+		requireJSONField(t, info.Info, "info")
+		requireJSONField(t, info.Schema, "schema")
+		requireJSONField(t, info.Stats, "stats")
+		requireJSONField(t, info.Retention, "retention")
+	})
+}
+
+func TestPrismUpdateDataset(t *testing.T) {
+	// Verifies that Prism updates and persists a dataset's time-partition limit.
+	t.Parallel()
+	stream := NewGlob.Stream + "prismupdate"
+	CreateStream(t, NewGlob.PBClient, stream)
+	t.Cleanup(func() {
+		DeleteStream(t, NewGlob.PBClient, stream)
+	})
+
+	req, err := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+stream, nil)
+	require.NoError(t, err)
+	req.Header.Set("X-P-Update-Stream", "true")
+	req.Header.Set("X-P-Time-Partition-Limit", "7d")
+	response, err := NewGlob.QueryClient.Do(req)
+	require.NoError(t, err)
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
+	require.NoError(t, response.Body.Close())
+
+	req, err = NewGlob.QueryClient.NewRequestAtPath("GET", "api/prism/v1/logstream/"+stream+"/info", nil)
+	require.NoError(t, err)
+	response, err = NewGlob.QueryClient.Do(req)
+	require.NoError(t, err)
+	defer response.Body.Close()
+	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
+
+	datasetInfo, err := readJsonBody[prismDatasetInfoResponse](response.Body)
+	require.NoError(t, err)
+	var streamInfo prismStreamInfo
+	require.NoError(t, json.Unmarshal(datasetInfo.Info, &streamInfo))
+	require.Equal(t, "7", streamInfo.TimePartitionLimit)
 }
 
 // func TestTimePartition_TimeStampMismatch(t *testing.T) {

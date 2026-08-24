@@ -502,11 +502,12 @@ func getIdFromTargetResponse(body io.Reader) string {
 	return target.Target.Id
 }
 
-func getAlertBody(stream string, targetId string) string {
+func getAlertBody(stream string, targetId string, metricName string) string {
 	return fmt.Sprintf(`
     {
       "severity": "medium",
       "title": "AlertTitle",
+      "metric_name": %q,
       "query": "select count(level) from %s where level = 'info'",
       "alertType": "threshold",
       "thresholdConfig": {
@@ -534,7 +535,7 @@ func getAlertBody(stream string, targetId string) string {
           "%s"
       ],
       "tags": ["quest-test"]
-    }`, stream, targetId)
+    }`, metricName, stream, targetId)
 }
 
 func getMetadataFromAlertResponse(body io.Reader) (string, string, string, []string) {
