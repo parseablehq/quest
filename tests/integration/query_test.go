@@ -17,9 +17,27 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
+
+type queryWithFieldsResponse struct {
+	Fields  []string          `json:"fields"`
+	Records []json.RawMessage `json:"records"`
+}
+
+type countsResponse struct {
+	Fields  []string       `json:"fields"`
+	Records []countsRecord `json:"records"`
+}
+
+type countsRecord struct {
+	Count uint64 `json:"count"`
+}
 
 func TestSmokeIngestAndQuery(t *testing.T) {
 	// Verifies ingestion and SQL queries across two streams.
@@ -43,11 +61,13 @@ func TestSmokeIngestAndQuery(t *testing.T) {
 	time.Sleep(120 * time.Second)
 
 	t.Run("IngestEventsToStream", func(t *testing.T) {
+		t.Parallel()
 		QueryLogStreamCount(t, NewGlob.PBClient, stream1, 50)
 		AssertStreamSchema(t, NewGlob.QueryClient, stream1, FlogJsonSchema)
 	})
 
 	t.Run("RunQueries", func(t *testing.T) {
+		t.Parallel()
 		QueryLogStreamCount(t, NewGlob.PBClient, stream1, 50)
 		AssertQueryOK(t, NewGlob.PBClient, "SELECT * FROM %s", stream1)
 		AssertQueryOK(t, NewGlob.PBClient, "SELECT * FROM %s OFFSET 25 LIMIT 25", stream1)
@@ -62,6 +82,67 @@ func TestSmokeIngestAndQuery(t *testing.T) {
 	})
 
 	t.Run("QueryTwoStreams", func(t *testing.T) {
+		t.Parallel()
 		QueryTwoLogStreamCount(t, NewGlob.PBClient, stream1, stream2, 100)
+	})
+
+	t.Run("QueryWithFields", func(t *testing.T) {
+		// Verifies the UI query response includes field names and records.
+		t.Parallel()
+		endTime := time.Now().Add(time.Second).Format(time.RFC3339Nano)
+		startTime := time.Now().Add(-30 * time.Minute).Format(time.RFC3339Nano)
+		payload, err := json.Marshal(map[string]string{
+			"query":     "SELECT method, status FROM " + stream1 + " LIMIT 1",
+			"startTime": startTime,
+			"endTime":   endTime,
+		})
+		require.NoError(t, err)
+
+		req, err := NewGlob.QueryClient.NewRequest("POST", "query", bytes.NewReader(payload))
+		require.NoError(t, err)
+		params := req.URL.Query()
+		params.Set("fields", "true")
+		req.URL.RawQuery = params.Encode()
+
+		response, err := NewGlob.QueryClient.Do(req)
+		require.NoError(t, err)
+		defer response.Body.Close()
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
+
+		result, err := readJsonBody[queryWithFieldsResponse](response.Body)
+		require.NoError(t, err)
+		require.Equal(t, []string{"method", "status"}, result.Fields)
+		require.Len(t, result.Records, 1)
+	})
+
+	t.Run("QueryCounts", func(t *testing.T) {
+		// Verifies that the UI counts API returns graph buckets for ingested events.
+		t.Parallel()
+		endTime := time.Now().Add(time.Second).Format(time.RFC3339Nano)
+		startTime := time.Now().Add(-30 * time.Minute).Format(time.RFC3339Nano)
+		payload, err := json.Marshal(map[string]any{
+			"stream":    stream1,
+			"startTime": startTime,
+			"endTime":   endTime,
+			"numBins":   10,
+		})
+		require.NoError(t, err)
+
+		req, err := NewGlob.QueryClient.NewRequest("POST", "counts", bytes.NewReader(payload))
+		require.NoError(t, err)
+		response, err := NewGlob.QueryClient.Do(req)
+		require.NoError(t, err)
+		defer response.Body.Close()
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
+
+		result, err := readJsonBody[countsResponse](response.Body)
+		require.NoError(t, err)
+		require.Equal(t, []string{"start_time", "end_time", "count"}, result.Fields)
+		require.NotEmpty(t, result.Records)
+		var total uint64
+		for _, record := range result.Records {
+			total += record.Count
+		}
+		require.Equal(t, uint64(50), total)
 	})
 }
