@@ -1,8 +1,12 @@
+FROM ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:v0.158.0 AS telemetrygen
+
 FROM golang:1.21.1-bookworm
 
 WORKDIR /tests
 
 COPY . .
+
+COPY --from=telemetrygen /telemetrygen /usr/local/bin/telemetrygen
 
 RUN go test ./tests/integration/clients/... \
     && go test -c -o quest.test ./tests/integration \
