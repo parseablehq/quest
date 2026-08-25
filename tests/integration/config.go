@@ -37,6 +37,7 @@ type Glob struct {
 	IngestorClient   httpclient.HTTPClient
 	PBClient         pb.PBClient
 	Mode             string
+	Edition          string
 	MinIoConfig
 }
 
@@ -59,6 +60,7 @@ var NewGlob = func() Glob {
 
 	var stream string
 	var mode string
+	var edition string
 	var pbBinary string
 	// XXX
 	var minioUrl string
@@ -76,6 +78,7 @@ var NewGlob = func() Glob {
 
 	flag.StringVar(&stream, "stream", "app", "Specify stream. Default is app")
 	flag.StringVar(&mode, "mode", "smoke", "Specify mode. Default is smoke")
+	flag.StringVar(&edition, "edition", "oss", "Specify Parseable edition. Default is oss")
 	flag.StringVar(&pbBinary, "pb-bin", "pb", "Specify the pb binary path. Default is pb from PATH")
 
 	flag.StringVar(&minioUrl, "minio-url", "localhost:9000", "Specify MinIO URL. Default is localhost:9000")
@@ -112,6 +115,7 @@ var NewGlob = func() Glob {
 			PBClient:         pbClient,
 			Stream:           stream,
 			Mode:             mode,
+			Edition:          edition,
 			MinIoConfig: MinIoConfig{
 				Url:    minioUrl,
 				User:   minioUser,
@@ -128,6 +132,7 @@ var NewGlob = func() Glob {
 			PBClient:      pbClient,
 			Stream:        stream,
 			Mode:          mode,
+			Edition:       edition,
 			MinIoConfig: MinIoConfig{
 				Url:    minioUrl,
 				User:   minioUser,
