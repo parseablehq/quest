@@ -39,6 +39,29 @@ type countsRecord struct {
 	Count uint64 `json:"count"`
 }
 
+type datasetFieldStats struct {
+	FieldCount     float64            `json:"field_count"`
+	DistinctCount  float64            `json:"distinct_count"`
+	DistinctValues map[string]float64 `json:"distinct_values"`
+}
+
+func postQueryFeature(path string, payload any) (int, []byte, error) {
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return 0, nil, err
+	}
+	req, err := NewGlob.QueryClient.NewRequestAtPath("POST", path, bytes.NewReader(encoded))
+	if err != nil {
+		return 0, nil, err
+	}
+	response, err := NewGlob.QueryClient.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer response.Body.Close()
+	return response.StatusCode, []byte(readAsString(response.Body)), nil
+}
+
 func TestSmokeIngestAndQuery(t *testing.T) {
 	// Verifies ingestion and SQL queries across two streams.
 	t.Parallel()
@@ -145,4 +168,67 @@ func TestSmokeIngestAndQuery(t *testing.T) {
 		}
 		require.Equal(t, uint64(50), total)
 	})
+
+	t.Run("DatasetFieldStats", func(t *testing.T) {
+		// Verifie that dataset field statistics are returned for a stream.
+		t.Parallel()
+		payload := map[string]any{
+			"datasetName": stream1,
+			"startTime":   time.Now().Add(-30 * time.Minute).Format(time.RFC3339Nano),
+			"endTime":     time.Now().Add(time.Minute).Format(time.RFC3339Nano),
+			"fields":      []string{"method", "status"},
+			"offset":      0,
+			"limit":       5,
+		}
+		var stats map[string]datasetFieldStats
+		var status int
+		var body []byte
+		var err error
+		deadline := time.Now().Add(time.Minute)
+		for {
+			status, body, err = postQueryFeature("api/prism/v1/dataset_stats", payload)
+			if err == nil && status == 200 && json.Unmarshal(body, &stats) == nil &&
+				stats["method"].FieldCount > 0 && stats["status"].FieldCount > 0 {
+				break
+			}
+			if time.Now().After(deadline) {
+				require.FailNowf(t, "dataset stats did not become available", "status=%d body=%s error=%v", status, body, err)
+			}
+			time.Sleep(10 * time.Second)
+		}
+		require.Greater(t, stats["method"].DistinctCount, float64(0))
+		require.NotEmpty(t, stats["method"].DistinctValues)
+		require.Greater(t, stats["status"].DistinctCount, float64(0))
+	})
+
+}
+
+func TestQueryContextEndpoint(t *testing.T) {
+	// Verifies the shared log-context route is registered.
+	t.Parallel()
+	status, body, err := postQueryFeature("api/v1/query/context", map[string]any{})
+	require.NoError(t, err)
+	require.NotEqualf(t, 404, status, "log-context route was not found: %s", body)
+}
+
+func TestForecastCountsEndpoint(t *testing.T) {
+	// Verifies the Enterprise forecast-counts route is registered.
+	if NewGlob.Edition != "enterprise" {
+		t.Skip("forecast counts are only available in Enterprise")
+	}
+	t.Parallel()
+	status, body, err := postQueryFeature("api/v1/counts?forecast=true", map[string]any{})
+	require.NoError(t, err)
+	require.Equalf(t, 400, status, "expected request validation from the forecast-counts route: %s", body)
+}
+
+func TestPanoramaForecastEndpoint(t *testing.T) {
+	// Verifies the Enterprise Panorama forecast route is registered.
+	if NewGlob.Edition != "enterprise" {
+		t.Skip("Panorama forecast is only available in Enterprise")
+	}
+	t.Parallel()
+	status, body, err := postQueryFeature("api/prism/v1/panorama/forecast", map[string]any{})
+	require.NoError(t, err)
+	require.Equalf(t, 400, status, "expected request validation from the Panorama route: %s", body)
 }

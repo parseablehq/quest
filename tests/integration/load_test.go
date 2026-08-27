@@ -19,7 +19,6 @@ package main
 import (
 	"fmt"
 	"os/exec"
-	"sync"
 	"testing"
 	"time"
 
@@ -33,42 +32,6 @@ const (
 	events_count            = "5"
 	parseableLoadSettleWait = 3 * time.Minute // Allows asynchronous flush and conversion to finish.
 )
-
-// loadPhaseLock lets all finite regular load tests join the active read phase,
-// while the smoke load remains exclusive from that phase.
-type loadPhaseLock struct {
-	readersMu  sync.Mutex
-	resourceMu sync.Mutex
-	readers    int
-}
-
-func (l *loadPhaseLock) RLock() {
-	l.readersMu.Lock()
-	l.readers++
-	if l.readers == 1 {
-		l.resourceMu.Lock()
-	}
-	l.readersMu.Unlock()
-}
-
-func (l *loadPhaseLock) RUnlock() {
-	l.readersMu.Lock()
-	l.readers--
-	if l.readers == 0 {
-		l.resourceMu.Unlock()
-	}
-	l.readersMu.Unlock()
-}
-
-func (l *loadPhaseLock) Lock() {
-	l.resourceMu.Lock()
-}
-
-func (l *loadPhaseLock) Unlock() {
-	l.resourceMu.Unlock()
-}
-
-var k6Mu loadPhaseLock
 
 func TestLoadStreamBatchWithK6_StaticSchema(t *testing.T) {
 	// Verifies batch ingestion into a static-schema stream under load.
@@ -117,8 +80,6 @@ func TestSmokeLoadWithK6Streams(t *testing.T) {
 	t.Parallel()
 	stream := NewGlob.Stream + "smokeload"
 	CreateStream(t, NewGlob.PBClient, stream)
-	k6Mu.Lock()
-	defer k6Mu.Unlock()
 	runK6Smoke(t, stream)
 
 	customPartitionStream := NewGlob.Stream + "smokeloadcustompartition"
@@ -166,8 +127,6 @@ func runK6Smoke(t *testing.T, stream string) {
 
 func runK6Load(t *testing.T, cmd *exec.Cmd) {
 	t.Helper()
-	k6Mu.RLock()
-	defer k6Mu.RUnlock()
 	op, err := cmd.CombinedOutput()
 	require.NoErrorf(t, err, "k6 failed: %s", string(op))
 	t.Log(string(op))
