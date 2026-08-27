@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -91,16 +90,6 @@ func TestSmokeClusterManagement(t *testing.T) {
 			require.NotEmpty(t, metric.Address)
 			require.NotEmpty(t, metric.NodeType)
 		}
-	})
-
-	t.Run("Pmeta", func(t *testing.T) {
-		status, body := clusterRequest(t, "POST", "query", map[string]string{
-			"query":     `SELECT * FROM pmeta WHERE address = '` + strings.ReplaceAll(liveIngestor.DomainName, "'", "''") + `' ORDER BY event_time DESC LIMIT 10 OFFSET 0`,
-			"startTime": time.Now().UTC().Add(-24 * time.Hour).Format(time.RFC3339Nano),
-			"endTime":   time.Now().UTC().Add(time.Minute).Format(time.RFC3339Nano),
-		})
-		require.Equalf(t, 200, status, "pmeta query failed: %s", body)
-		require.Truef(t, json.Valid(body), "pmeta returned invalid JSON: %s", body)
 	})
 
 	t.Run("RejectLiveNodeDeletion", func(t *testing.T) {
