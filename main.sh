@@ -56,7 +56,23 @@ configure_pb () {
 
 run () {
   echo "Running $edition integration tests"
-  ./quest.test -test.v -test.parallel=32 -edition="$edition" -mode="$mode" -query-url="$endpoint" -stream="$stream_name" -query-user="$username" -query-pass="$password" -minio-url="$minio_url" -minio-user="$minio_access_key" -minio-pass="$minio_secret_key" -minio-bucket="$minio_bucket" -ingestor-url="$ingestor_endpoint" -ingestor-user="$ingestor_username" -ingestor-pass="$ingestor_password"
+
+  load_tests='^(TestLoadStreamBatchWithK6_StaticSchema|TestLoadStreamBatchWithK6|TestLoadStreamBatchWithCustomPartitionWithK6|TestLoadStreamNoBatchWithK6|TestLoadStreamNoBatchWithCustomPartitionWithK6|TestSmokeLoadWithK6Streams)$'
+
+  if [ "$mode" = "load" ]; then
+    echo "Running functional integration test phase"
+    run_tests -test.skip="$load_tests" || return $?
+
+    echo "Running k6 load test phase"
+    run_tests -test.run="$load_tests"
+    return $?
+  fi
+
+  run_tests
+}
+
+run_tests () {
+  ./quest.test -test.v -test.parallel=32 "$@" -edition="$edition" -mode="$mode" -query-url="$endpoint" -stream="$stream_name" -query-user="$username" -query-pass="$password" -minio-url="$minio_url" -minio-user="$minio_access_key" -minio-pass="$minio_secret_key" -minio-bucket="$minio_bucket" -ingestor-url="$ingestor_endpoint" -ingestor-user="$ingestor_username" -ingestor-pass="$ingestor_password"
 }
 
 configure_pb || exit $?
