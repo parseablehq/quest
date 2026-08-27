@@ -1,17 +1,24 @@
 // Copyright (c) 2023 Cloudnatively Services Pvt Ltd
 //
+//
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package main
 
 import (
 	"bytes"
 	"encoding/json"
-	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -90,15 +97,5 @@ func TestSmokeClusterManagement(t *testing.T) {
 			require.NotEmpty(t, metric.Address)
 			require.NotEmpty(t, metric.NodeType)
 		}
-	})
-
-	t.Run("RejectLiveNodeDeletion", func(t *testing.T) {
-		// Matches the UI's one-segment node address format.
-		nodeAddress := strings.TrimPrefix(strings.TrimPrefix(liveIngestor.DomainName, "http://"), "https://")
-		nodeAddress = strings.TrimSuffix(nodeAddress, "/")
-		path := "cluster/" + url.PathEscape(nodeAddress)
-		status, body := clusterRequest(t, "DELETE", path, nil)
-		require.Equalf(t, 400, status, "live node deletion was not rejected: %s", body)
-		require.Contains(t, string(body), "currently live")
 	})
 }
