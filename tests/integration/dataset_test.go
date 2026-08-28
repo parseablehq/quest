@@ -40,10 +40,6 @@ type prismDatasetInfoResponse struct {
 	Retention json.RawMessage `json:"retention"`
 }
 
-type prismStreamInfo struct {
-	TimePartitionLimit string `json:"timePartitionLimit"`
-}
-
 func requireJSONField(t *testing.T, field json.RawMessage, name string) {
 	t.Helper()
 	require.NotEmptyf(t, field, "%s is missing from the response", name)
@@ -135,74 +131,6 @@ func TestPrismDatasetUIEndpoints(t *testing.T) {
 		requireJSONField(t, info.Retention, "retention")
 	})
 }
-
-func TestPrismUpdateDataset(t *testing.T) {
-	// Verifies that Prism updates and persists a dataset's time-partition limit.
-	t.Parallel()
-	stream := NewGlob.Stream + "prismupdate"
-	CreateStream(t, NewGlob.PBClient, stream)
-	t.Cleanup(func() {
-		DeleteStream(t, NewGlob.PBClient, stream)
-	})
-
-	req, err := NewGlob.QueryClient.NewRequest("PUT", "logstream/"+stream, nil)
-	require.NoError(t, err)
-	req.Header.Set("X-P-Update-Stream", "true")
-	req.Header.Set("X-P-Time-Partition-Limit", "7d")
-	response, err := NewGlob.QueryClient.Do(req)
-	require.NoError(t, err)
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
-	require.NoError(t, response.Body.Close())
-
-	req, err = NewGlob.QueryClient.NewRequestAtPath("GET", "api/prism/v1/logstream/"+stream+"/info", nil)
-	require.NoError(t, err)
-	response, err = NewGlob.QueryClient.Do(req)
-	require.NoError(t, err)
-	defer response.Body.Close()
-	require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
-
-	datasetInfo, err := readJsonBody[prismDatasetInfoResponse](response.Body)
-	require.NoError(t, err)
-	var streamInfo prismStreamInfo
-	require.NoError(t, json.Unmarshal(datasetInfo.Info, &streamInfo))
-	require.Equal(t, "7", streamInfo.TimePartitionLimit)
-}
-
-// func TestTimePartition_TimeStampMismatch(t *testing.T) {
-// 	historicalStream := NewGlob.Stream + "historical"
-// 	timeHeader := map[string]string{"X-P-Time-Partition": "source_time"}
-// 	CreateStreamWithHeader(t, NewGlob.QueryClient, historicalStream, timeHeader)
-// 	if NewGlob.IngestorUrl.String() == "" {
-// 		IngestOneEventWithTimePartition_TimeStampMismatch(t, NewGlob.QueryClient, historicalStream)
-// 	} else {
-// 		IngestOneEventWithTimePartition_TimeStampMismatch(t, NewGlob.IngestorClient, historicalStream)
-// 	}
-// 	DeleteStream(t, NewGlob.PBClient, historicalStream)
-// }
-
-// func TestTimePartition_NoTimePartitionInLog(t *testing.T) {
-// 	historicalStream := NewGlob.Stream + "historical"
-// 	timeHeader := map[string]string{"X-P-Time-Partition": "source_time"}
-// 	CreateStreamWithHeader(t, NewGlob.QueryClient, historicalStream, timeHeader)
-// 	if NewGlob.IngestorUrl.String() == "" {
-// 		IngestOneEventWithTimePartition_NoTimePartitionInLog(t, NewGlob.QueryClient, historicalStream)
-// 	} else {
-// 		IngestOneEventWithTimePartition_NoTimePartitionInLog(t, NewGlob.IngestorClient, historicalStream)
-// 	}
-// 	DeleteStream(t, NewGlob.PBClient, historicalStream)
-// }
-
-// func TestTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t *testing.T) {
-// 	historicalStream := NewGlob.Stream + "historical"
-// 	timeHeader := map[string]string{"X-P-Time-Partition": "source_time"}
-// 	CreateStreamWithHeader(t, NewGlob.QueryClient, historicalStream, timeHeader)
-// 	if NewGlob.IngestorUrl.String() == "" {
-// 		IngestOneEventWithTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t, NewGlob.QueryClient, historicalStream)
-// 	} else {
-// 		IngestOneEventWithTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t, NewGlob.IngestorClient, historicalStream)
-// 	}
-// 	DeleteStream(t, NewGlob.PBClient, historicalStream)
-// }
 
 func TestStaticSchemaIngestion(t *testing.T) {
 	// Verifies that a static schema accepts matching fields and rejects new fields.

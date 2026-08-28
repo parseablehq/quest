@@ -124,7 +124,6 @@ func TestIntegrity(t *testing.T) {
 
 		// Wait for the events to be sync'd.
 		time.Sleep(parseableSyncWait)
-		// XXX: We don't need to sleep for the entire minute, just until the next minute boundary.
 	}
 
 	parquetFiles := downloadParquetFiles(stream, NewGlob.MinIoConfig, workDir)
