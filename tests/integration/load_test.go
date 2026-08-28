@@ -133,70 +133,6 @@ func runK6Load(t *testing.T, cmd *exec.Cmd) {
 	time.Sleep(parseableLoadSettleWait)
 }
 
-// func TestSmokeLoad_TimePartition_WithK6Stream(t *testing.T) {
-// 	time_partition_stream := NewGlob.Stream + "timepartition"
-// 	timeHeader := map[string]string{"X-P-Time-Partition": "source_time", "X-P-Time-Partition-Limit": "365d"}
-// 	CreateStreamWithHeader(t, NewGlob.QueryClient, time_partition_stream, timeHeader)
-// 	if NewGlob.IngestorUrl.String() == "" {
-// 		cmd := exec.Command("k6",
-// 			"run",
-// 			"-e", fmt.Sprintf("P_URL=%s", NewGlob.QueryUrl.String()),
-// 			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
-// 			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
-// 			"-e", fmt.Sprintf("P_STREAM=%s", time_partition_stream),
-// 			"./scripts/smoke.js")
-
-// 		cmd.Run()
-// 		cmd.Output()
-// 	} else {
-// 		cmd := exec.Command("k6",
-// 			"run",
-// 			"-e", fmt.Sprintf("P_URL=%s", NewGlob.IngestorUrl.String()),
-// 			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
-// 			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
-// 			"-e", fmt.Sprintf("P_STREAM=%s", time_partition_stream),
-// 			"./scripts/smoke.js")
-
-// 		cmd.Run()
-// 		cmd.Output()
-// 	}
-// 	time.Sleep(120 * time.Second)
-// 	QueryLogStreamCount_Historical(t, NewGlob.PBClient, time_partition_stream, 20000)
-// 	DeleteStream(t, NewGlob.PBClient, time_partition_stream)
-// }
-
-// func TestSmokeLoad_TimeAndCustomPartition_WithK6Stream(t *testing.T) {
-// 	custom_partition_stream := NewGlob.Stream + "timecustompartition"
-// 	customHeader := map[string]string{"X-P-Custom-Partition": "level", "X-P-Time-Partition": "source_time", "X-P-Time-Partition-Limit": "365d"}
-// 	CreateStreamWithHeader(t, NewGlob.QueryClient, custom_partition_stream, customHeader)
-// 	if NewGlob.IngestorUrl.String() == "" {
-// 		cmd := exec.Command("k6",
-// 			"run",
-// 			"-e", fmt.Sprintf("P_URL=%s", NewGlob.QueryUrl.String()),
-// 			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
-// 			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
-// 			"-e", fmt.Sprintf("P_STREAM=%s", custom_partition_stream),
-// 			"./scripts/smoke.js")
-
-// 		cmd.Run()
-// 		cmd.Output()
-// 	} else {
-// 		cmd := exec.Command("k6",
-// 			"run",
-// 			"-e", fmt.Sprintf("P_URL=%s", NewGlob.IngestorUrl.String()),
-// 			"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
-// 			"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
-// 			"-e", fmt.Sprintf("P_STREAM=%s", custom_partition_stream),
-// 			"./scripts/smoke.js")
-
-// 		cmd.Run()
-// 		cmd.Output()
-// 	}
-// 	time.Sleep(180 * time.Second)
-// 	QueryLogStreamCount_Historical(t, NewGlob.PBClient, custom_partition_stream, 20000)
-// 	DeleteStream(t, NewGlob.PBClient, custom_partition_stream)
-// }
-
 func TestLoadStreamBatchWithK6(t *testing.T) {
 	// Verifies batch ingestion into a normal stream under load.
 	if NewGlob.Mode == "load" {
@@ -237,55 +173,6 @@ func TestLoadStreamBatchWithK6(t *testing.T) {
 		}
 	}
 }
-
-// func TestLoadHistoricalStreamBatchWithK6(t *testing.T) {
-// 	if NewGlob.Mode == "load" {
-// 		historicalStream := NewGlob.Stream + "historical"
-// 		timeHeader := map[string]string{"X-P-Time-Partition": "source_time"}
-// 		CreateStreamWithHeader(t, NewGlob.QueryClient, historicalStream, timeHeader)
-// 		if NewGlob.IngestorUrl.String() == "" {
-// 			cmd := exec.Command("k6",
-// 				"run",
-// 				"-e", fmt.Sprintf("P_URL=%s", NewGlob.QueryUrl.String()),
-// 				"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
-// 				"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
-// 				"-e", fmt.Sprintf("P_STREAM=%s", historicalStream),
-// 				"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
-// 				"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", events_count),
-// 				"./scripts/load_historical_batch_events.js",
-// 				"--vus=", vus,
-// 				"--duration=", duration)
-
-// 			cmd.Run()
-// 			op, err := cmd.Output()
-// 			if err != nil {
-// 				t.Log(err)
-// 			}
-// 			t.Log(string(op))
-// 		} else {
-// 			cmd := exec.Command("k6",
-// 				"run",
-// 				"-e", fmt.Sprintf("P_URL=%s", NewGlob.IngestorUrl.String()),
-// 				"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
-// 				"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
-// 				"-e", fmt.Sprintf("P_STREAM=%s", historicalStream),
-// 				"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
-// 				"-e", fmt.Sprintf("P_EVENTS_COUNT=%s", events_count),
-// 				"./scripts/load_historical_batch_events.js",
-// 				"--vus=", vus,
-// 				"--duration=", duration)
-
-// 			cmd.Run()
-// 			op, err := cmd.Output()
-// 			if err != nil {
-// 				t.Log(err)
-// 			}
-// 			t.Log(string(op))
-// 		}
-
-// 		DeleteStream(t, NewGlob.PBClient, historicalStream)
-// 	}
-// }
 
 func TestLoadStreamBatchWithCustomPartitionWithK6(t *testing.T) {
 	// Verifies batch ingestion into a custom-partition stream under load.
@@ -369,53 +256,6 @@ func TestLoadStreamNoBatchWithK6(t *testing.T) {
 
 	}
 }
-
-// func TestLoadHistoricalStreamNoBatchWithK6(t *testing.T) {
-// 	if NewGlob.Mode == "load" {
-// 		historicalStream := NewGlob.Stream + "historical"
-// 		timeHeader := map[string]string{"X-P-Time-Partition": "source_time"}
-// 		CreateStreamWithHeader(t, NewGlob.QueryClient, historicalStream, timeHeader)
-// 		if NewGlob.IngestorUrl.String() == "" {
-// 			cmd := exec.Command("k6",
-// 				"run",
-// 				"-e", fmt.Sprintf("P_URL=%s", NewGlob.QueryUrl.String()),
-// 				"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.QueryUsername),
-// 				"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.QueryPassword),
-// 				"-e", fmt.Sprintf("P_STREAM=%s", historicalStream),
-// 				"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
-// 				"./scripts/load_single_events.js",
-// 				"--vus=", vus,
-// 				"--duration=", duration)
-
-// 			cmd.Run()
-// 			op, err := cmd.Output()
-// 			if err != nil {
-// 				t.Log(err)
-// 			}
-// 			t.Log(string(op))
-// 		} else {
-// 			cmd := exec.Command("k6",
-// 				"run",
-// 				"-e", fmt.Sprintf("P_URL=%s", NewGlob.IngestorUrl.String()),
-// 				"-e", fmt.Sprintf("P_USERNAME=%s", NewGlob.IngestorUsername),
-// 				"-e", fmt.Sprintf("P_PASSWORD=%s", NewGlob.IngestorPassword),
-// 				"-e", fmt.Sprintf("P_STREAM=%s", historicalStream),
-// 				"-e", fmt.Sprintf("P_SCHEMA_COUNT=%s", schema_count),
-// 				"./scripts/load_single_events.js",
-// 				"--vus=", vus,
-// 				"--duration=", duration)
-
-// 			cmd.Run()
-// 			op, err := cmd.Output()
-// 			if err != nil {
-// 				t.Log(err)
-// 			}
-// 			t.Log(string(op))
-// 		}
-
-// 		DeleteStream(t, NewGlob.PBClient, historicalStream)
-// 	}
-// }
 
 func TestLoadStreamNoBatchWithCustomPartitionWithK6(t *testing.T) {
 	// Verifies single-event ingestion into a custom-partition stream under load.

@@ -175,33 +175,6 @@ func RunFlog(t *testing.T, client httpclient.HTTPClient, stream string) {
 	}
 }
 
-func IngestOneEventWithTimePartition_TimeStampMismatch(t *testing.T, client httpclient.HTTPClient, stream string) {
-	var test_payload string = `{"source_time":"2024-03-26T18:08:00.434Z","level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingestor 8020"}`
-	req, _ := client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
-	req.Header.Add("X-P-Stream", stream)
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t, 400, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
-}
-
-func IngestOneEventWithTimePartition_NoTimePartitionInLog(t *testing.T, client httpclient.HTTPClient, stream string) {
-	var test_payload string = `{"level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingestor 8020"}`
-	req, _ := client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
-	req.Header.Add("X-P-Stream", stream)
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t, 400, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
-}
-
-func IngestOneEventWithTimePartition_IncorrectDateTimeFormatTimePartitionInLog(t *testing.T, client httpclient.HTTPClient, stream string) {
-	var test_payload string = `{"source_time":"2024-03-26", "level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingestor 8020"}`
-	req, _ := client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
-	req.Header.Add("X-P-Stream", stream)
-	response, err := client.Do(req)
-	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t, 400, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
-}
-
 func IngestOneEventForStaticSchemaStream_NewFieldInLog(t *testing.T, client httpclient.HTTPClient, stream string) {
 	var test_payload string = `{"source_time":"2024-03-26", "level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingestor 8020"}`
 	req, _ := client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
@@ -240,18 +213,6 @@ func QueryLogStreamCount(t *testing.T, client pb.PBClient, stream string, count 
 	// Query last 30 minutes of data only
 	endTime := time.Now().Add(time.Second).Format(time.RFC3339Nano)
 	startTime := time.Now().Add(-30 * time.Minute).Format(time.RFC3339Nano)
-
-	query := "select count(*) as count from " + stream
-	var rows []PBCountRow
-	runSQLWithPB(t, client, query, startTime, endTime, &rows)
-	require.Equalf(t, []PBCountRow{{Count: count}}, rows, "Query count incorrect; Expected %d, Actual %v", count, rows)
-}
-
-func QueryLogStreamCount_Historical(t *testing.T, client pb.PBClient, stream string, count uint64) {
-	// Query last 30 minutes of data only
-	now := time.Now()
-	startTime := now.AddDate(0, 0, -33).Format(time.RFC3339Nano)
-	endTime := now.AddDate(0, 0, -27).Format(time.RFC3339Nano)
 
 	query := "select count(*) as count from " + stream
 	var rows []PBCountRow
