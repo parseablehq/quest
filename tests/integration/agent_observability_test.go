@@ -177,10 +177,8 @@ func createAgentObservabilityDataset(t *testing.T, dataset string) {
 
 func ingestAgentObservabilityFixture(t *testing.T, dataset, traceID string) {
 	t.Helper()
-	client := NewGlob.QueryClient
-	if NewGlob.IngestorUrl.String() != "" {
-		client = NewGlob.IngestorClient
-	}
+	require.NotEmpty(t, NewGlob.IngestorUrl.String(), "Enterprise Agent Observability tests require a distributed ingestor")
+	client := NewGlob.IngestorClient
 
 	start := time.Now().UTC().Add(-3 * time.Second)
 	rootSpanID := "aaaaaaaaaaaaaaaa"

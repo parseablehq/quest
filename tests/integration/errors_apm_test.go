@@ -69,10 +69,8 @@ func otlpIntAttribute(key string, value int) map[string]any {
 
 func ingestObservabilityFixture(t *testing.T, dataset, traceID string) {
 	t.Helper()
-	client := NewGlob.QueryClient
-	if NewGlob.IngestorUrl.String() != "" {
-		client = NewGlob.IngestorClient
-	}
+	require.NotEmpty(t, NewGlob.IngestorUrl.String(), "Enterprise Errors and APM tests require a distributed ingestor")
+	client := NewGlob.IngestorClient
 
 	start := time.Now().UTC().Add(-2 * time.Second)
 	rootSpanID := "1111111111111111"

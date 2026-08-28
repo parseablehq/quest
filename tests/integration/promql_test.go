@@ -87,14 +87,10 @@ func promQLCommandCases(dataset, instantTime string) []promQLCommandCase {
 func ingestPromQLMetric(t *testing.T, dataset string) time.Time {
 	// Generates and ingests real OTLP metrics, like RunFlog does for SQL tests.
 	t.Helper()
-	targetURL := NewGlob.QueryUrl
-	username := NewGlob.QueryUsername
-	password := NewGlob.QueryPassword
-	if NewGlob.IngestorUrl.String() != "" {
-		targetURL = NewGlob.IngestorUrl
-		username = NewGlob.IngestorUsername
-		password = NewGlob.IngestorPassword
-	}
+	require.NotEmpty(t, NewGlob.IngestorUrl.String(), "Enterprise PromQL tests require a distributed ingestor")
+	targetURL := NewGlob.IngestorUrl
+	username := NewGlob.IngestorUsername
+	password := NewGlob.IngestorPassword
 
 	args := []string{
 		"metrics",
