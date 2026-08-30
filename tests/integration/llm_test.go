@@ -1,6 +1,5 @@
 // Copyright (c) 2023 Cloudnatively Services Pvt Ltd
 //
-//
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
@@ -18,6 +17,9 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,6 +33,7 @@ type testLLMConfig struct {
 	ID                string   `json:"id"`
 	IsDefault         bool     `json:"isDefault"`
 	ModelsList        []string `json:"modelsList"`
+	DefaultModel      string   `json:"defaultModel"`
 	ResponsesEndpoint string   `json:"responsesEndpoint"`
 }
 
@@ -44,6 +47,50 @@ type testLLMModelList struct {
 	Default  bool     `json:"default"`
 	Provider string   `json:"provider"`
 	Models   []string `json:"models"`
+}
+
+func startTestLLMServer(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "0.0.0.0:0")
+	require.NoError(t, err)
+
+	server := &http.Server{Handler: http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost || request.URL.Path != "/responses" {
+			http.NotFound(response, request)
+			return
+		}
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(map[string]any{
+			"id": "quest-validation-response", "object": "response", "created_at": 0,
+			"status": "completed", "background": false, "error": nil, "incomplete_details": nil,
+			"instructions": "say hello", "max_output_tokens": nil, "max_tool_calls": nil,
+			"model": "quest-validation-model", "parallel_tool_calls": false,
+			"previous_response_id": nil, "reasoning": nil, "service_tier": "default",
+			"store": false, "temperature": 0.1, "tool_choice": "auto", "tools": []any{},
+			"top_logprobs": nil, "top_p": 1.0, "truncation": "disabled",
+			"output": []any{map[string]any{
+				"type": "message", "id": "quest-validation-message", "status": "completed",
+				"role": "assistant", "content": []any{map[string]any{
+					"type": "output_text", "text": "hello", "annotations": []any{}, "logprobs": []any{},
+				}},
+			}},
+			"usage": map[string]any{
+				"input_tokens": 1, "input_tokens_details": map[string]any{"cached_tokens": 0},
+				"output_tokens": 1, "output_tokens_details": map[string]any{"reasoning_tokens": 0},
+				"total_tokens": 2,
+			},
+			"user": nil, "metadata": map[string]any{},
+		})
+	})}
+	t.Cleanup(func() {
+		_ = server.Close()
+	})
+	go func() {
+		_ = server.Serve(listener)
+	}()
+
+	port := listener.Addr().(*net.TCPAddr).Port
+	return fmt.Sprintf("http://quest:%d", port)
 }
 
 func llmRequest(t *testing.T, method, path string, payload any, expectedStatus int) []byte {
@@ -119,14 +166,16 @@ func TestEnterpriseLLMConfigLifecycle(t *testing.T) {
 	modelTwo := NewGlob.Stream + "-model-two"
 	secretOne := "quest-secret-key-one"
 	secretTwo := "quest-secret-key-two"
+	testLLMURL := startTestLLMServer(t)
 
 	createPayload := func(title, secret, model string) map[string]any {
 		return map[string]any{
 			"provider":          "Custom",
 			"title":             title,
 			"apiKey":            secret,
-			"url":               "http://unused-llm.test",
+			"url":               testLLMURL,
 			"modelsList":        []string{model},
+			"defaultModel":      model,
 			"responsesEndpoint": "responses",
 		}
 	}
@@ -139,6 +188,7 @@ func TestEnterpriseLLMConfigLifecycle(t *testing.T) {
 	require.Equal(t, titleOne, createdOne.Title)
 	require.Equal(t, maskedAPIKey, createdOne.APIKey)
 	require.Equal(t, []string{modelOne}, createdOne.ModelsList)
+	require.Equal(t, modelOne, createdOne.DefaultModel)
 	require.Equal(t, "responses", createdOne.ResponsesEndpoint)
 
 	createdTwoBody := llmRequest(t, "POST", basePath, createPayload(titleTwo, secretTwo, modelTwo), 200)
@@ -154,6 +204,8 @@ func TestEnterpriseLLMConfigLifecycle(t *testing.T) {
 		listedTwo := requireTestLLMConfig(t, configs, createdTwo.ID)
 		require.Equal(t, titleOne, listedOne.Title)
 		require.Equal(t, titleTwo, listedTwo.Title)
+		require.Equal(t, modelOne, listedOne.DefaultModel)
+		require.Equal(t, modelTwo, listedTwo.DefaultModel)
 		require.Equal(t, maskedAPIKey, listedOne.APIKey)
 		require.Equal(t, maskedAPIKey, listedTwo.APIKey)
 		encoded, err := json.Marshal(configs)
