@@ -47,64 +47,67 @@ type agentMetric struct {
 	Current float64 `json:"current"`
 }
 
-type agentOverviewResponse struct {
-	Section1 struct {
-		InvocationCount agentMetric `json:"invocationCount"`
-		ErrorCount      agentMetric `json:"errorCount"`
-		TotalTokens     agentMetric `json:"totalTokens"`
-		TotalLLMCalls   agentMetric `json:"totalLlmCalls"`
-		TotalToolCalls  agentMetric `json:"totalToolCalls"`
-	} `json:"section1"`
-	Section2 struct {
-		ToolUsage []struct {
-			ToolName string  `json:"toolName"`
-			Calls    float64 `json:"calls"`
-		} `json:"toolUsagePercentage"`
-		TokenUsage []struct {
-			User         string  `json:"user"`
-			Model        string  `json:"model"`
-			InputTokens  float64 `json:"inputTokens"`
-			OutputTokens float64 `json:"outputTokens"`
-		} `json:"tokenUsageByUserAndModel"`
-	} `json:"section2"`
+type agentOverviewSummaryResponse struct {
+	InvocationCount agentMetric `json:"invocationCount"`
+	ErrorCount      agentMetric `json:"errorCount"`
+	TotalTokens     agentMetric `json:"totalTokens"`
+	TotalLLMCalls   agentMetric `json:"totalLlmCalls"`
+	TotalToolCalls  agentMetric `json:"totalToolCalls"`
 }
 
-type agentModelsResponse struct {
-	Cards struct {
-		InputTokens   agentMetric `json:"inputTokens"`
-		OutputTokens  agentMetric `json:"outputTokens"`
-		MostUsedModel struct {
-			Name string `json:"name"`
-		} `json:"mostUsedModel"`
-	} `json:"cards"`
-	Charts struct {
-		TotalTokensByModel []struct {
-			Name  string  `json:"name"`
-			Value float64 `json:"value"`
-		} `json:"totalTokensByModel"`
-	} `json:"charts"`
+type agentOverviewBreakdownResponse struct {
+	ToolUsage []struct {
+		ToolName string  `json:"toolName"`
+		Calls    float64 `json:"calls"`
+	} `json:"toolUsagePercentage"`
+	TokenUsage []struct {
+		User         string  `json:"user"`
+		Model        string  `json:"model"`
+		InputTokens  float64 `json:"inputTokens"`
+		OutputTokens float64 `json:"outputTokens"`
+	} `json:"tokenUsageByUserAndModel"`
 }
 
-type agentToolsResponse struct {
-	Cards struct {
-		TotalToolCalls agentMetric `json:"totalToolCalls"`
-		Errors         agentMetric `json:"errors"`
-		MostUsedTool   struct {
-			Name string `json:"name"`
-		} `json:"mostUsedTool"`
-	} `json:"cards"`
-	Charts struct {
-		ToolUsage []struct {
-			ToolName string  `json:"toolName"`
-			Calls    float64 `json:"calls"`
-		} `json:"toolUsage"`
-		ToolFailures struct {
-			Points []struct {
-				TraceID  string `json:"traceId"`
-				ToolName string `json:"toolName"`
-			} `json:"points"`
-		} `json:"toolFailures"`
-	} `json:"charts"`
+type agentModelsTokenSummaryResponse struct {
+	InputTokens  agentMetric `json:"inputTokens"`
+	OutputTokens agentMetric `json:"outputTokens"`
+}
+
+type agentNameMetric struct {
+	Name string `json:"name"`
+}
+
+type agentModelsMostUsedResponse struct {
+	MostUsedModel agentNameMetric `json:"mostUsedModel"`
+}
+
+type agentModelsTotalTokensResponse struct {
+	TotalTokensByModel []struct {
+		Name  string  `json:"name"`
+		Value float64 `json:"value"`
+	} `json:"totalTokensByModel"`
+}
+
+type agentToolsSummaryResponse struct {
+	Errors agentMetric `json:"errors"`
+}
+
+type agentToolsUsageResponse struct {
+	TotalToolCalls agentMetric     `json:"totalToolCalls"`
+	MostUsedTool   agentNameMetric `json:"mostUsedTool"`
+	ToolUsage      []struct {
+		ToolName string  `json:"toolName"`
+		Calls    float64 `json:"calls"`
+	} `json:"toolUsage"`
+}
+
+type agentToolsFailuresResponse struct {
+	ToolFailures struct {
+		Points []struct {
+			TraceID  string `json:"traceId"`
+			ToolName string `json:"toolName"`
+		} `json:"points"`
+	} `json:"toolFailures"`
 }
 
 type agentListingRecord struct {
@@ -327,7 +330,7 @@ func waitForAgentListing(t *testing.T, payload map[string]any, traceID string) a
 				lastBody = err.Error()
 				return false
 			}
-			req, err := NewGlob.QueryClient.NewRequestAtPath("POST", "api/prism/v1/agent-observability/listing", bytes.NewReader(encoded))
+			req, err := NewGlob.QueryClient.NewRequestAtPath("POST", "api/prism/v1/agent-observability/listing/records", bytes.NewReader(encoded))
 			if err != nil {
 				lastBody = err.Error()
 				return false
@@ -337,9 +340,10 @@ func waitForAgentListing(t *testing.T, payload map[string]any, traceID string) a
 				lastBody = err.Error()
 				return false
 			}
-			lastBody = readAsString(response.Body)
+			body := readAsString(response.Body)
 			response.Body.Close()
-			if response.StatusCode != 200 || json.Unmarshal([]byte(lastBody), &result) != nil {
+			lastBody = fmt.Sprintf("status=%d body=%s", response.StatusCode, body)
+			if response.StatusCode != 200 || json.Unmarshal([]byte(body), &result) != nil {
 				return false
 			}
 			for _, record := range result.Records {
@@ -410,20 +414,23 @@ func TestEnterpriseAgentObservability(t *testing.T) {
 				"dataset": window["dataset"], "startTime": window["startTime"], "endTime": window["endTime"],
 				"provider": "openai", "numBins": 10,
 			}
-			var result agentOverviewResponse
-			agentObservabilityRequest(t, "api/prism/v1/agent-observability/overview", payload, &result)
-			require.GreaterOrEqual(t, result.Section1.InvocationCount.Current, float64(1))
-			require.GreaterOrEqual(t, result.Section1.ErrorCount.Current, float64(1))
-			require.GreaterOrEqual(t, result.Section1.TotalTokens.Current, float64(30))
-			require.GreaterOrEqual(t, result.Section1.TotalLLMCalls.Current, float64(1))
-			require.GreaterOrEqual(t, result.Section1.TotalToolCalls.Current, float64(1))
-			require.Contains(t, result.Section2.ToolUsage, struct {
+			var summary agentOverviewSummaryResponse
+			agentObservabilityRequest(t, "api/prism/v1/agent-observability/overview/summary", payload, &summary)
+			require.GreaterOrEqual(t, summary.InvocationCount.Current, float64(1))
+			require.GreaterOrEqual(t, summary.ErrorCount.Current, float64(1))
+			require.GreaterOrEqual(t, summary.TotalTokens.Current, float64(30))
+			require.GreaterOrEqual(t, summary.TotalLLMCalls.Current, float64(1))
+			require.GreaterOrEqual(t, summary.TotalToolCalls.Current, float64(1))
+
+			var breakdown agentOverviewBreakdownResponse
+			agentObservabilityRequest(t, "api/prism/v1/agent-observability/overview/breakdown", payload, &breakdown)
+			require.Contains(t, breakdown.ToolUsage, struct {
 				ToolName string  `json:"toolName"`
 				Calls    float64 `json:"calls"`
 			}{ToolName: agentObservabilityTool, Calls: 1})
-			require.NotEmpty(t, result.Section2.TokenUsage)
-			require.Equal(t, agentObservabilityUser, result.Section2.TokenUsage[0].User)
-			require.Equal(t, agentObservabilityModel, result.Section2.TokenUsage[0].Model)
+			require.NotEmpty(t, breakdown.TokenUsage)
+			require.Equal(t, agentObservabilityUser, breakdown.TokenUsage[0].User)
+			require.Equal(t, agentObservabilityModel, breakdown.TokenUsage[0].Model)
 		})
 
 		t.Run("Models", func(t *testing.T) {
@@ -432,13 +439,19 @@ func TestEnterpriseAgentObservability(t *testing.T) {
 				"dataset": window["dataset"], "startTime": window["startTime"], "endTime": window["endTime"],
 				"provider": "openai",
 			}
-			var result agentModelsResponse
-			agentObservabilityRequest(t, "api/prism/v1/agent-observability/models", payload, &result)
-			require.GreaterOrEqual(t, result.Cards.InputTokens.Current, float64(20))
-			require.GreaterOrEqual(t, result.Cards.OutputTokens.Current, float64(10))
-			require.Equal(t, agentObservabilityModel, result.Cards.MostUsedModel.Name)
+			var tokenSummary agentModelsTokenSummaryResponse
+			agentObservabilityRequest(t, "api/prism/v1/agent-observability/models/token-summary", payload, &tokenSummary)
+			require.GreaterOrEqual(t, tokenSummary.InputTokens.Current, float64(20))
+			require.GreaterOrEqual(t, tokenSummary.OutputTokens.Current, float64(10))
+
+			var mostUsed agentModelsMostUsedResponse
+			agentObservabilityRequest(t, "api/prism/v1/agent-observability/models/most-used", payload, &mostUsed)
+			require.Equal(t, agentObservabilityModel, mostUsed.MostUsedModel.Name)
+
+			var totalTokens agentModelsTotalTokensResponse
+			agentObservabilityRequest(t, "api/prism/v1/agent-observability/models/total-tokens", payload, &totalTokens)
 			var modelFound bool
-			for _, model := range result.Charts.TotalTokensByModel {
+			for _, model := range totalTokens.TotalTokensByModel {
 				if model.Name == agentObservabilityModel && model.Value >= 30 {
 					modelFound = true
 				}
@@ -448,20 +461,26 @@ func TestEnterpriseAgentObservability(t *testing.T) {
 
 		t.Run("Tools", func(t *testing.T) {
 			t.Parallel()
-			var result agentToolsResponse
-			agentObservabilityRequest(t, "api/prism/v1/agent-observability/tools", window, &result)
-			require.GreaterOrEqual(t, result.Cards.TotalToolCalls.Current, float64(1))
-			require.GreaterOrEqual(t, result.Cards.Errors.Current, float64(1))
-			require.Equal(t, agentObservabilityTool, result.Cards.MostUsedTool.Name)
+			var summary agentToolsSummaryResponse
+			agentObservabilityRequest(t, "api/prism/v1/agent-observability/tools/summary", window, &summary)
+			require.GreaterOrEqual(t, summary.Errors.Current, float64(1))
+
+			var usage agentToolsUsageResponse
+			agentObservabilityRequest(t, "api/prism/v1/agent-observability/tools/usage", window, &usage)
+			require.GreaterOrEqual(t, usage.TotalToolCalls.Current, float64(1))
+			require.Equal(t, agentObservabilityTool, usage.MostUsedTool.Name)
 			var toolFound bool
-			for _, tool := range result.Charts.ToolUsage {
+			for _, tool := range usage.ToolUsage {
 				if tool.ToolName == agentObservabilityTool && tool.Calls >= 1 {
 					toolFound = true
 				}
 			}
 			require.True(t, toolFound, "tool usage did not include the ingested tool")
+
+			var failures agentToolsFailuresResponse
+			agentObservabilityRequest(t, "api/prism/v1/agent-observability/tools/failures", window, &failures)
 			var failureFound bool
-			for _, failure := range result.Charts.ToolFailures.Points {
+			for _, failure := range failures.ToolFailures.Points {
 				if failure.TraceID == traceID && failure.ToolName == agentObservabilityTool {
 					failureFound = true
 				}

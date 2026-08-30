@@ -176,12 +176,15 @@ func RunFlog(t *testing.T, client httpclient.HTTPClient, stream string) {
 }
 
 func IngestOneEventForStaticSchemaStream_NewFieldInLog(t *testing.T, client httpclient.HTTPClient, stream string) {
-	var test_payload string = `{"source_time":"2024-03-26", "level":"info","message":"Application is failing","version":"1.2.0","user_id":13912,"device_id":4138,"session_id":"abc","os":"Windows","host":"112.168.1.110","location":"ngeuprqhynuvpxgp","request_body":"rnkmffyawtdcindtrdqruyxbndbjpfsptzpwtujbmkwcqastmxwbvjwphmyvpnhordwljnodxhtvpjesjldtifswqbpyuhlcytmm","status_code":300,"app_meta":"ckgpibhmlusqqfunnpxbfxbc", "new_field_added_by":"ingestor 8020"}`
+	var test_payload string = `{"level":"info","message":"Application is failing","new_field_added_by":"quest"}`
 	req, _ := client.NewRequest("POST", "ingest", bytes.NewBufferString(test_payload))
 	req.Header.Add("X-P-Stream", stream)
 	response, err := client.Do(req)
 	require.NoErrorf(t, err, "Request failed: %s", err)
-	require.Equalf(t, 400, response.StatusCode, "Server returned http code: %s resp %s", response.Status, readAsString(response.Body))
+	defer response.Body.Close()
+	body := readAsString(response.Body)
+	require.Equalf(t, 400, response.StatusCode, "Server returned http code: %s resp %s", response.Status, body)
+	require.Contains(t, body, "Schema mismatch", "request was rejected for an unexpected reason")
 }
 
 func IngestOneEventForStaticSchemaStream_SameFieldsInLog(t *testing.T, client httpclient.HTTPClient, stream string) {
