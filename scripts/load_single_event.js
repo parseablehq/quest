@@ -1,5 +1,6 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import exec from 'k6/execution';
 import encoding from 'k6/encoding';
 import { randomString, randomItem, randomIntBetween, uuidv4 } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js'
 
@@ -167,5 +168,11 @@ export default function () {
     }
 
     let batch_requests = generateEvents(1).map(event => ['POST', url, event, params]);
-    http.batch(batch_requests);
+    let responses = http.batch(batch_requests);
+
+    if (!check(responses, {
+        'status code MUST be 200': (responses) => responses.every(response => response.status == 200),
+    })) {
+        exec.test.abort("Failed to send event.. status != 200");
+    }
 }
