@@ -27,8 +27,8 @@ import (
 	httpclient "quest/tests/integration/clients/http"
 )
 
-// RBAC tests mutate shared server-wide user and role state. They are still
-// scheduled as parallel tests, but those mutations must not overlap.
+// RBAC tests mutate shared server-wide user and role state. Keep them
+// sequential, and retain the mutex as a guard against accidental overlap.
 var rbacMu sync.Mutex
 
 type prismUserResponse struct {
@@ -78,8 +78,6 @@ func setDefaultRole(t *testing.T, role string) {
 
 func TestSmoke_AllUsersAPI(t *testing.T) {
 	// Verifies the UI user APIs together with creation, password, and deletion.
-	t.Skip("temporarily disabled due to a Parseable RBAC server issue")
-	t.Parallel()
 	rbacMu.Lock()
 	t.Cleanup(rbacMu.Unlock)
 
@@ -188,8 +186,6 @@ func TestSmoke_AllUsersAPI(t *testing.T) {
 
 func TestSmokeRoleUIEndpoints(t *testing.T) {
 	// Verifies role listing and default-role APIs without leaking global state.
-	t.Skip("temporarily disabled due to a Parseable RBAC server issue")
-	t.Parallel()
 	rbacMu.Lock()
 	t.Cleanup(rbacMu.Unlock)
 
@@ -234,8 +230,6 @@ func TestSmokeRoleUIEndpoints(t *testing.T) {
 
 func TestSmoke_NewUserWithRole(t *testing.T) {
 	// Verifies that a new user can be created with a role.
-	t.Skip("temporarily disabled due to a Parseable RBAC server issue")
-	t.Parallel()
 	rbacMu.Lock()
 	defer rbacMu.Unlock()
 
@@ -252,8 +246,6 @@ func TestSmoke_NewUserWithRole(t *testing.T) {
 
 func TestSmokeRbacBasic(t *testing.T) {
 	// Verifies that a user's role controls basic API access.
-	t.Skip("temporarily disabled due to a Parseable RBAC server issue")
-	t.Parallel()
 	rbacMu.Lock()
 	defer rbacMu.Unlock()
 
@@ -274,8 +266,6 @@ func TestSmokeRbacBasic(t *testing.T) {
 
 func TestSmokeRoles(t *testing.T) {
 	// Verifies API access for ingestor, reader, writer, and editor roles.
-	t.Skip("temporarily disabled due to a Parseable RBAC server issue")
-	t.Parallel()
 	rbacMu.Lock()
 	defer rbacMu.Unlock()
 
