@@ -44,6 +44,8 @@ func TestLoadStreamBatchWithK6_StaticSchema(t *testing.T) {
 		if NewGlob.IngestorUrl.String() == "" {
 			cmd := exec.Command("k6",
 				"run",
+				"--quiet",
+				"--no-summary",
 				"--address", "",
 				"--vus", vus,
 				"--duration", duration,
@@ -59,6 +61,8 @@ func TestLoadStreamBatchWithK6_StaticSchema(t *testing.T) {
 		} else {
 			cmd := exec.Command("k6",
 				"run",
+				"--quiet",
+				"--no-summary",
 				"--address", "",
 				"--vus", vus,
 				"--duration", duration,
@@ -113,6 +117,8 @@ func runK6Smoke(t *testing.T, stream string) {
 
 	cmd := exec.Command("k6",
 		"run",
+		"--quiet",
+		"--no-summary",
 		"--address", "",
 		"-e", fmt.Sprintf("P_URL=%s", url),
 		"-e", fmt.Sprintf("P_USERNAME=%s", username),
@@ -143,6 +149,8 @@ func TestLoadStreamBatchWithK6(t *testing.T) {
 		if NewGlob.IngestorUrl.String() == "" {
 			cmd := exec.Command("k6",
 				"run",
+				"--quiet",
+				"--no-summary",
 				"--address", "",
 				"--vus", vus,
 				"--duration", duration,
@@ -158,6 +166,8 @@ func TestLoadStreamBatchWithK6(t *testing.T) {
 		} else {
 			cmd := exec.Command("k6",
 				"run",
+				"--quiet",
+				"--no-summary",
 				"--address", "",
 				"--vus", vus,
 				"--duration", duration,
@@ -187,6 +197,8 @@ func TestLoadStreamBatchWithCustomPartitionWithK6(t *testing.T) {
 	if NewGlob.IngestorUrl.String() == "" {
 		cmd := exec.Command("k6",
 			"run",
+			"--quiet",
+			"--no-summary",
 			"--address", "",
 			"--vus", vus,
 			"--duration", duration,
@@ -202,6 +214,8 @@ func TestLoadStreamBatchWithCustomPartitionWithK6(t *testing.T) {
 	} else {
 		cmd := exec.Command("k6",
 			"run",
+			"--quiet",
+			"--no-summary",
 			"--address", "",
 			"--vus", vus,
 			"--duration", duration,
@@ -227,6 +241,8 @@ func TestLoadStreamNoBatchWithK6(t *testing.T) {
 		if NewGlob.IngestorUrl.String() == "" {
 			cmd := exec.Command("k6",
 				"run",
+				"--quiet",
+				"--no-summary",
 				"--address", "",
 				"--vus", vus,
 				"--duration", duration,
@@ -241,6 +257,8 @@ func TestLoadStreamNoBatchWithK6(t *testing.T) {
 		} else {
 			cmd := exec.Command("k6",
 				"run",
+				"--quiet",
+				"--no-summary",
 				"--address", "",
 				"--vus", vus,
 				"--duration", duration,
@@ -270,6 +288,8 @@ func TestLoadStreamNoBatchWithCustomPartitionWithK6(t *testing.T) {
 	if NewGlob.IngestorUrl.String() == "" {
 		cmd := exec.Command("k6",
 			"run",
+			"--quiet",
+			"--no-summary",
 			"--address", "",
 			"--vus", vus,
 			"--duration", duration,
@@ -284,6 +304,8 @@ func TestLoadStreamNoBatchWithCustomPartitionWithK6(t *testing.T) {
 	} else {
 		cmd := exec.Command("k6",
 			"run",
+			"--quiet",
+			"--no-summary",
 			"--address", "",
 			"--vus", vus,
 			"--duration", duration,
