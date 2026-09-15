@@ -98,6 +98,9 @@ func DatasetInfoWithPB(t *testing.T, client pb.PBClient, dataset string) PBDatas
 func DeleteStream(t *testing.T, client pb.PBClient, dataset string) {
 	t.Helper()
 	result, err := client.Run(context.Background(), "dataset", "remove", dataset)
+	if err != nil && strings.Contains(result.Stdout+result.Stderr, "202 Accepted") {
+		return
+	}
 	require.NoErrorf(t, err, "pb dataset remove failed (exit=%d, stdout=%q, stderr=%q)", result.ExitCode, result.Stdout, result.Stderr)
 }
 
