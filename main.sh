@@ -56,14 +56,33 @@ configure_pb () {
 
 run () {
   echo "Running $edition integration tests"
-  if [ "$mode" = "load" ]; then
-    echo "Running functional and k6 load tests in parallel"
+  if [ "$mode" != "load" ]; then
+    run_tests "$mode"
+    return
   fi
-  run_tests
+
+  batch_one='^(TestLoadStreamBatchWithCustomPartitionWithK6|TestLoadStreamNoBatchWithK6|TestLoadStreamNoBatchWithCustomPartitionWithK6)$'
+  batch_two='^(TestLoadStreamBatchWithK6|TestLoadStreamBatchWithK6_StaticSchema)$'
+  smoke_load='^TestSmokeLoadWithK6Streams$'
+  load_tests='^(TestLoadStreamBatchWithCustomPartitionWithK6|TestLoadStreamNoBatchWithK6|TestLoadStreamNoBatchWithCustomPartitionWithK6|TestLoadStreamBatchWithK6|TestLoadStreamBatchWithK6_StaticSchema|TestSmokeLoadWithK6Streams)$'
+
+  echo "Running functional and smoke tests in parallel"
+  run_tests smoke -test.skip "$load_tests" || return $?
+
+  echo "Running k6 load test batch 1"
+  run_tests load -test.run "$batch_one" || return $?
+
+  echo "Running k6 load test batch 2"
+  run_tests load -test.run "$batch_two" || return $?
+
+  echo "Running k6 smoke load test"
+  run_tests smoke -test.run "$smoke_load"
 }
 
 run_tests () {
-  ./quest.test -test.v -test.parallel=64 "$@" -edition="$edition" -mode="$mode" -query-url="$endpoint" -stream="$stream_name" -query-user="$username" -query-pass="$password" -minio-url="$minio_url" -minio-user="$minio_access_key" -minio-pass="$minio_secret_key" -minio-bucket="$minio_bucket" -ingestor-url="$ingestor_endpoint" -ingestor-user="$ingestor_username" -ingestor-pass="$ingestor_password"
+  test_mode=$1
+  shift
+  ./quest.test -test.v -test.parallel=64 "$@" -edition="$edition" -mode="$test_mode" -query-url="$endpoint" -stream="$stream_name" -query-user="$username" -query-pass="$password" -minio-url="$minio_url" -minio-user="$minio_access_key" -minio-pass="$minio_secret_key" -minio-bucket="$minio_bucket" -ingestor-url="$ingestor_endpoint" -ingestor-user="$ingestor_username" -ingestor-pass="$ingestor_password"
 }
 
 configure_pb || exit $?
