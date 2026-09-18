@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package main
+package httpclient
 
 import (
 	"io"
@@ -39,13 +39,50 @@ func DefaultClient(url url.URL, username string, password string) HTTPClient {
 	}
 }
 
-func (client *HTTPClient) baseAPIURL(path string) (x string) {
-	x, _ = url.JoinPath(client.Url.String(), "api/v1/", path)
-	return
+func joinURLPath(baseURL string, reference string) (string, error) {
+	parsedReference, err := url.Parse(reference)
+	if err != nil {
+		return "", err
+	}
+	joined, err := url.JoinPath(baseURL, parsedReference.Path)
+	if err != nil {
+		return "", err
+	}
+	parsedJoined, err := url.Parse(joined)
+	if err != nil {
+		return "", err
+	}
+	parsedJoined.RawQuery = parsedReference.RawQuery
+	parsedJoined.Fragment = parsedReference.Fragment
+	return parsedJoined.String(), nil
+}
+
+func (client *HTTPClient) baseAPIURL(path string) (string, error) {
+	apiBase, err := url.JoinPath(client.Url.String(), "api/v1/")
+	if err != nil {
+		return "", err
+	}
+	return joinURLPath(apiBase, path)
 }
 
 func (client *HTTPClient) NewRequest(method string, path string, body io.Reader) (req *http.Request, err error) {
-	req, err = http.NewRequest(method, client.baseAPIURL(path), body)
+	requestURL, err := client.baseAPIURL(path)
+	if err != nil {
+		return nil, err
+	}
+	return client.NewRequestAtPath(method, requestURL, body)
+}
+
+func (client *HTTPClient) NewRequestAtPath(method string, path string, body io.Reader) (req *http.Request, err error) {
+	requestURL := path
+	if parsedURL, parseErr := url.Parse(path); parseErr != nil || !parsedURL.IsAbs() {
+		requestURL, err = joinURLPath(client.Url.String(), path)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	req, err = http.NewRequest(method, requestURL, body)
 	if err != nil {
 		return
 	}

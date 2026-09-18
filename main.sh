@@ -37,11 +37,34 @@ minio_bucket=${11}
 ingestor_endpoint=${12}
 ingestor_username=${13}
 ingestor_password=${14}
+edition=${QUEST_EDITION:-oss}
 stream_name=$(head /dev/urandom | tr -dc a-z | head -c10)
 
-run () {
-  ./quest.test -test.v -mode="$mode" -query-url="$endpoint" -stream="$stream_name" -query-user="$username" -query-pass="$password" -minio-url="$minio_url" -minio-user="$minio_access_key" -minio-pass="$minio_secret_key" -minio-bucket="$minio_bucket" -ingestor-url="$ingestor_endpoint" -ingestor-user="$ingestor_username" -ingestor-pass="$ingestor_password"
-  return $?
+case "$edition" in
+  oss|enterprise) ;;
+  *)
+    echo "invalid QUEST_EDITION: $edition" >&2
+    exit 1
+    ;;
+esac
+
+configure_pb () {
+  export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-/tmp/quest-pb-config}"
+  pb profile add quest "$endpoint" "$username" "$password" -o json \
+    && pb profile default quest -o json
 }
 
+run () {
+  echo "Running $edition integration tests"
+  if [ "$mode" = "load" ]; then
+    echo "Running functional and k6 load tests in parallel"
+  fi
+  run_tests
+}
+
+run_tests () {
+  ./quest.test -test.v -test.parallel=64 "$@" -edition="$edition" -mode="$mode" -query-url="$endpoint" -stream="$stream_name" -query-user="$username" -query-pass="$password" -minio-url="$minio_url" -minio-user="$minio_access_key" -minio-pass="$minio_secret_key" -minio-bucket="$minio_bucket" -ingestor-url="$ingestor_endpoint" -ingestor-user="$ingestor_username" -ingestor-pass="$ingestor_password"
+}
+
+configure_pb || exit $?
 run

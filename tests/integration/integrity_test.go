@@ -79,12 +79,12 @@ func (flog *ParquetFlog) Deref() Flog {
 	}
 }
 
-// - Send logs to Parseable
-// - Wait for sync
-// - Download parquet files from the store created by Parseable for the minute
-// - Compare the sent logs with the ones loaded from the downloaded parquet
 func TestIntegrity(t *testing.T) {
-	CreateStream(t, NewGlob.QueryClient, NewGlob.Stream)
+	// Verifies that ingested logs match the logs stored in Parquet files.
+	t.Parallel()
+	stream := NewGlob.Stream + "integrity"
+	workDir := t.TempDir()
+	CreateStream(t, NewGlob.PBClient, stream)
 	iterations := 1
 	flogsPerIteration := 100
 
@@ -97,7 +97,7 @@ func TestIntegrity(t *testing.T) {
 	flogs := make([]Flog, 0, iterations*flogsPerIteration)
 
 	for i := 0; i < iterations; i++ {
-		flogsFile := fmt.Sprintf("%d.log", i)
+		flogsFile := filepath.Join(workDir, fmt.Sprintf("%d.log", i))
 
 		err := exec.Command("flog",
 			"--number", strconv.Itoa(flogsPerIteration),
@@ -111,7 +111,7 @@ func TestIntegrity(t *testing.T) {
 
 		loadedFlogs := loadFlogsFromFile(flogsFile)
 
-		err = ingestFlogs(loadedFlogs, NewGlob.Stream)
+		err = ingestFlogs(loadedFlogs, stream)
 		if err != nil {
 			t.Fatal("error ingesting flogs", err)
 		}
@@ -124,10 +124,9 @@ func TestIntegrity(t *testing.T) {
 
 		// Wait for the events to be sync'd.
 		time.Sleep(parseableSyncWait)
-		// XXX: We don't need to sleep for the entire minute, just until the next minute boundary.
 	}
 
-	parquetFiles := downloadParquetFiles(NewGlob.Stream, NewGlob.MinIoConfig)
+	parquetFiles := downloadParquetFiles(stream, NewGlob.MinIoConfig, workDir)
 	actualFlogs := loadFlogsFromParquetFiles(parquetFiles)
 
 	rowCount := len(actualFlogs)
@@ -140,7 +139,6 @@ func TestIntegrity(t *testing.T) {
 		require.Equal(t, actualFlog, expectedFlog)
 	}
 
-	DeleteStream(t, NewGlob.QueryClient, NewGlob.Stream)
 }
 
 func ingestFlogs(flogs []Flog, stream string) error {
@@ -172,7 +170,7 @@ func ingestFlogs(flogs []Flog, stream string) error {
 	return nil
 }
 
-func downloadParquetFiles(stream string, config MinIoConfig) []string {
+func downloadParquetFiles(stream string, config MinIoConfig, downloadDir string) []string {
 	client, err := minio.New(config.Url, config.User, config.Pass, false)
 	if err != nil {
 		slog.Error("couldn't create MinIO client", "error", err)
@@ -199,7 +197,7 @@ func downloadParquetFiles(stream string, config MinIoConfig) []string {
 
 		// Write the MinIO Object we got, into `downloadPath`.
 
-		fileName := strings.ReplaceAll(key, "/", ".")
+		fileName := filepath.Join(downloadDir, strings.ReplaceAll(key, "/", "."))
 		f, _ := os.Create(fileName)
 		_, err = io.Copy(f, parquetObject)
 
@@ -285,6 +283,10 @@ func loadFlogsFromFile(path string) []Flog {
 		}
 
 		flogs = append(flogs, flog)
+	}
+	linesErr := lines.Err()
+	if linesErr != nil {
+		slog.Error("error reading lines", "error", linesErr)
 	}
 
 	return flogs
