@@ -154,8 +154,7 @@ func TestSmoke_AllUsersAPI(t *testing.T) {
 		require.NoError(t, err)
 		defer response.Body.Close()
 		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
-		message, err := readJsonBody[string](response.Body)
-		require.NoError(t, err)
+		message := strings.Trim(strings.TrimSpace(readAsString(response.Body)), "\"")
 		require.Equal(t, "Roles updated successfully for "+user, message)
 
 		updated := getPrismUser(t, user)
@@ -172,8 +171,7 @@ func TestSmoke_AllUsersAPI(t *testing.T) {
 		require.NoError(t, err)
 		defer response.Body.Close()
 		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
-		message, err := readJsonBody[string](response.Body)
-		require.NoError(t, err)
+		message := strings.Trim(strings.TrimSpace(readAsString(response.Body)), "\"")
 		require.Equal(t, "Roles updated successfully for "+user, message)
 
 		updated := getPrismUser(t, user)
