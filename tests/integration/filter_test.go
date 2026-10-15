@@ -145,7 +145,7 @@ func TestSmokeSavedFilterLifecycle(t *testing.T) {
 			"filter_name":        updatedName,
 			"filter_description": "Updated by Quest",
 			"query": map[string]string{
-				"filter_type":  "sql",
+				"filter_type":  "filter",
 				"filter_query": updatedQuery,
 			},
 			"time_filter": nil,
