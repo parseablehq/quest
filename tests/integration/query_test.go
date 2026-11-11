@@ -30,6 +30,39 @@ type queryWithFieldsResponse struct {
 	Records []json.RawMessage `json:"records"`
 }
 
+type prismHomeResponse struct {
+	Datasets  []prismHomeDataset `json:"datasets"`
+	Checklist prismHomeChecklist `json:"checklist"`
+	LLMKeys   []json.RawMessage   `json:"llmKeys"`
+}
+
+type prismHomeDataset struct {
+	Title         string   `json:"title"`
+	DatasetType   string   `json:"datasetType"`
+	TimePartition *string  `json:"timePartition"`
+	DatasetFormat string   `json:"datasetFormat"`
+	Ingestion     bool     `json:"ingestion"`
+	Tags          []string `json:"tags"`
+	Labels        []string `json:"labels"`
+}
+
+type prismHomeChecklist struct {
+	DataIngested    *bool `json:"dataIngested"`
+	KeystoneCreated *bool `json:"keystoneCreated"`
+	AlertCreated    *bool `json:"alertCreated"`
+	UserAdded       *bool `json:"userAdded"`
+}
+
+type prismHomeSearchResponse struct {
+	Resources []prismHomeSearchResource `json:"resources"`
+}
+
+type prismHomeSearchResource struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	ResourceType string `json:"resource_type"`
+}
+
 type countsResponse struct {
 	Fields  []string       `json:"fields"`
 	Records []countsRecord `json:"records"`
@@ -82,6 +115,62 @@ func TestSmokeIngestAndQuery(t *testing.T) {
 	// populated before this wait so all ingestion and query assertions can share
 	// the same batch window.
 	time.Sleep(120 * time.Second)
+
+	t.Run("PrismHome", func(t *testing.T) {
+		req, err := NewGlob.QueryClient.NewRequestAtPath("GET", "api/prism/v1/home", nil)
+		require.NoError(t, err)
+		response, err := NewGlob.QueryClient.Do(req)
+		require.NoError(t, err)
+		defer response.Body.Close()
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
+
+		home, err := readJsonBody[prismHomeResponse](response.Body)
+		require.NoError(t, err)
+		require.NotNil(t, home.Checklist.DataIngested)
+		require.NotNil(t, home.Checklist.KeystoneCreated)
+		require.NotNil(t, home.Checklist.AlertCreated)
+		require.NotNil(t, home.Checklist.UserAdded)
+		require.True(t, *home.Checklist.DataIngested)
+		if NewGlob.Edition == "enterprise" {
+			require.NotNil(t, home.LLMKeys)
+		}
+
+		var dataset *prismHomeDataset
+		for i := range home.Datasets {
+			if home.Datasets[i].Title == stream1 {
+				dataset = &home.Datasets[i]
+				break
+			}
+		}
+		require.NotNil(t, dataset, "home response did not include stream %s", stream1)
+		require.Equal(t, "logs", dataset.DatasetType)
+		require.Nil(t, dataset.TimePartition)
+		require.Equal(t, "json", dataset.DatasetFormat)
+		require.True(t, dataset.Ingestion)
+		require.Empty(t, dataset.Tags)
+		require.Empty(t, dataset.Labels)
+	})
+
+	t.Run("PrismHomeSearch", func(t *testing.T) {
+		req, err := NewGlob.QueryClient.NewRequestAtPath("GET", "api/prism/v1/home/search", nil)
+		require.NoError(t, err)
+		params := req.URL.Query()
+		params.Set("key", stream1)
+		req.URL.RawQuery = params.Encode()
+
+		response, err := NewGlob.QueryClient.Do(req)
+		require.NoError(t, err)
+		defer response.Body.Close()
+		require.Equalf(t, 200, response.StatusCode, "Server returned http code: %s", response.Status)
+
+		search, err := readJsonBody[prismHomeSearchResponse](response.Body)
+		require.NoError(t, err)
+		require.Contains(t, search.Resources, prismHomeSearchResource{
+			ID:           stream1,
+			Name:         stream1,
+			ResourceType: "DataSet",
+		})
+	})
 
 	t.Run("IngestEventsToStream", func(t *testing.T) {
 		t.Parallel()
