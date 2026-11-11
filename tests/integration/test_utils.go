@@ -417,7 +417,8 @@ func checkAPIAccess(t *testing.T, queryClient httpclient.HTTPClient, ingestClien
 		req, _ = queryClient.NewRequest("DELETE", "logstream/"+stream, nil)
 		response, err = queryClient.Do(req)
 		require.NoErrorf(t, err, "Request failed: %s", err)
-		require.Equalf(t, 202, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
+		// Enterprise deletes synchronously (200); OSS accepts background deletion (202).
+		require.Containsf(t, []int{http.StatusOK, http.StatusAccepted}, response.StatusCode, "Server returned http code: %s and response: %s", response.Status, readAsString(response.Body))
 
 	case "writer":
 		// Check access to non-protected API
